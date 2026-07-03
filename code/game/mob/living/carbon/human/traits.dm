@@ -14,7 +14,7 @@
 		for (var/t in traits)
 			trait_cache[t] = TRUE
 		traits_dirty = FALSE
-	if (trait_cache[tt])
+	if (tt in trait_cache)
 		return TRUE
 var/global/list/trait_list = list(
 //	"Lactose Intolerance" = list(-1,list(),"You have the inability to digest dairy products and will get sick when you ingest them. (Get food poisoning from anytype of milk product)"),

@@ -85,7 +85,7 @@ var/global/list/sub_blast_doors = list()
 
 	// Bulkhead integrity check: if a bulkhead adjacent to a breached area is damaged,
 	// propagate water through it
-	for(var/B_ref in sub_bulkheads)
+	for(var/B_ref in sub_bulkheads.Copy())
 		var/turf/wall/sub_bulkhead/B = B_ref
 		if(!istype(B) || QDELETED(B))
 			sub_bulkheads -= B_ref
@@ -102,7 +102,7 @@ var/global/list/sub_blast_doors = list()
 						other_side.add_water(flow)
 
 	// Open blast door check: propagate water through open doors between compartments
-	for(var/obj/structure/simple_door/blast/D in sub_blast_doors)
+	for(var/obj/structure/simple_door/blast/D in sub_blast_doors.Copy())
 		if(QDELETED(D))
 			sub_blast_doors -= D
 			continue

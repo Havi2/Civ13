@@ -18,7 +18,7 @@
 	if(global.subcom_flooding)
 		global.subcom_flooding.process_tick()
 	// Process physical submarine machinery (bilge pumps, scrubbers, etc.)
-	for(var/obj/structure/machinery/sub_physical/M in sub_physical_machines)
+	for(var/obj/structure/machinery/sub_physical/M in sub_physical_machines.Copy())
 		if(!QDELETED(M))
 			M.process()
 		else

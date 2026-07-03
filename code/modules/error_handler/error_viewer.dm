@@ -10,8 +10,8 @@
 #ifdef USE_CUSTOM_ERROR_HANDLER
 GLOBAL_DATUM_INIT(error_cache, /datum/error_viewer/error_cache, new)
 #else
-// If the custom error handler is disabled, there's nothing useful to log, so don't bother.
-GLOBAL_DATUM(error_cache, /datum/error_viewer/error_cache)
+// If the custom error handler is disabled, still initialize the datum so callers don't get null.
+GLOBAL_DATUM_INIT(error_cache, /datum/error_viewer/error_cache, new)
 #endif
 
 // - error_source datums exist for each line (of code) that generates an error,
