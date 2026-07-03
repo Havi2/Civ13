@@ -980,12 +980,12 @@
 							process_projectile(P, user, target, tgt_zone, params)
 
 							// Shrieking Shrub Root: scream at nearby mobs on every cast
-							if (shrub_shriek)
+							if (shrub_shriek && prob(50))
 								playsound(user.loc, 'sound/weapons/magic/spell4.ogg', 100, TRUE)
 								H.visible_message(SPAN_DANGER("\The [src] lets out a horrible, ear-splitting SHRIEK!"))
 								for (var/mob/living/M in view(4, H))
 									if (M != H)
-										M.apply_effects(agony = 5)
+										M.apply_effects(agony = 15)
 										to_chat(M, SPAN_WARNING("Your ears ring from the terrible shriek!"))
 
 							// Tangled Cassette Tape: 15% chance to echo a second identical projectile
