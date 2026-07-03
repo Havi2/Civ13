@@ -1,5 +1,8 @@
 /mob/living/var/next_weather_sound = -1
 /mob/living/var/last_life_tick = 0
+/mob/living/var/next_weather_scan = 0
+/mob/living/var/cached_near_rainy_area = FALSE
+/mob/living/var/cached_rain_dist = 100
 /mob/living/Life()
 
 	..()
@@ -13,16 +16,29 @@
 
 		var/near_rainy_area = FALSE
 		var/rdist = 100
-		var/area/A = get_area(src)
-		if (A && A.weather == WEATHER_WET && findtext(A.icon_state,"rain"))
-			near_rainy_area = TRUE
-			rdist = 0
-		else
-			for (var/turf/T in view(7, src))
-				var/area/T_area = get_area(T)
-				if (T_area.weather == WEATHER_WET && findtext(T_area.icon_state,"rain"))
-					near_rainy_area = TRUE
-					rdist = min(rdist, get_dist(src, T))
+		// areas only get rainy icon_states while the global weather is wet/extreme,
+		// so we can skip all of this the rest of the time
+		if (weather == WEATHER_WET || weather == WEATHER_EXTREME)
+			var/area/A = get_area(src)
+			if (A && A.weather == WEATHER_WET && findtext(A.icon_state,"rain"))
+				near_rainy_area = TRUE
+				rdist = 0
+			else if (world.time >= next_weather_scan)
+				// the view(7) scan covers ~200 turfs; doing it every Life tick for
+				// every player is too expensive, so rescan at most every 5 seconds
+				next_weather_scan = world.time + 50
+				cached_near_rainy_area = FALSE
+				cached_rain_dist = 100
+				for (var/turf/T in view(7, src))
+					var/area/T_area = get_area(T)
+					if (T_area.weather == WEATHER_WET && findtext(T_area.icon_state,"rain"))
+						cached_near_rainy_area = TRUE
+						cached_rain_dist = min(cached_rain_dist, get_dist(src, T))
+				near_rainy_area = cached_near_rainy_area
+				rdist = cached_rain_dist
+			else
+				near_rainy_area = cached_near_rainy_area
+				rdist = cached_rain_dist
 
 		if (world.time >= next_weather_sound && near_rainy_area)
 			src << sound('sound/ambience/rain.ogg', channel = 778, volume = (100 - (rdist*2)))

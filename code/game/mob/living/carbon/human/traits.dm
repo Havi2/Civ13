@@ -1,11 +1,20 @@
 /mob
 	var/list/traits = list()
+	// assoc cache so find_trait() is a hash lookup instead of a list scan;
+	// anything that changes 'traits' after spawn must set traits_dirty = TRUE
+	var/tmp/list/trait_cache = null
+	var/tmp/traits_dirty = TRUE
 //name = cost, exclusions, description
 
 /mob/proc/find_trait(var/tt = null)
 	if (!tt)
 		return FALSE
-	if (tt in traits)
+	if (traits_dirty || !trait_cache)
+		trait_cache = list()
+		for (var/t in traits)
+			trait_cache[t] = TRUE
+		traits_dirty = FALSE
+	if (tt in trait_cache)
 		return TRUE
 var/global/list/trait_list = list(
 //	"Lactose Intolerance" = list(-1,list(),"You have the inability to digest dairy products and will get sick when you ingest them. (Get food poisoning from anytype of milk product)"),

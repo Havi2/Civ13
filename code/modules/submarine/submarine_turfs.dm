@@ -98,6 +98,7 @@
 
 /turf/wall/sub_bulkhead/New(var/newloc)
 	..(newloc,"submarine hull")
+	sub_bulkheads |= src
 
 /turf/wall/sub_bulkhead/attackby(obj/item/weapon/W, mob/user)
 	if(istype(W, /obj/item/weapon/weldingtool))

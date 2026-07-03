@@ -387,6 +387,7 @@
 				traits += "Heat Tolerance"
 			if (!f_sens)
 				traits += "Cold Sensitivity"
+			traits_dirty = TRUE
 		else if (mob_area.climate == "tundra" || mob_area.climate == "taiga")
 			var/f_res = FALSE
 			var/f_sens = FALSE
@@ -403,6 +404,7 @@
 				traits += "Cold Tolerance"
 			if (!f_sens)
 				traits += "Heat Sensitivity"
+			traits_dirty = TRUE
 
 ///////////////LANGUAGE PROC/////////////////////////
 
