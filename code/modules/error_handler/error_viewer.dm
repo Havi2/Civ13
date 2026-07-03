@@ -7,10 +7,10 @@
 //   logged errors. Only one instance of this datum should ever exist, and it's
 //   right here:
 
-#ifdef DEBUG
+#ifdef USE_CUSTOM_ERROR_HANDLER
 GLOBAL_DATUM_INIT(error_cache, /datum/error_viewer/error_cache, new)
 #else
-// If debugging is disabled, there's nothing useful to log, so don't bother.
+// If the custom error handler is disabled, there's nothing useful to log, so don't bother.
 GLOBAL_DATUM(error_cache, /datum/error_viewer/error_cache)
 #endif
 

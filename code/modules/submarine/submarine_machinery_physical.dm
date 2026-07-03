@@ -1,3 +1,8 @@
+// All physical submarine machinery. Processed once per second by
+// /process/submarine — NOT via processing_objects, which would make
+// /process/obj call process() on these a second time.
+var/global/list/sub_physical_machines = list()
+
 /obj/structure/machinery/sub_physical
 	name = "submarine machinery"
 	icon = 'icons/obj/machines/submarine.dmi'
@@ -13,10 +18,10 @@
 	..()
 	if(global.all_submarines.len)
 		my_sub = global.all_submarines[1]
-	processing_objects += src
+	sub_physical_machines += src
 
 /obj/structure/machinery/sub_physical/Destroy()
-	processing_objects -= src
+	sub_physical_machines -= src
 	..()
 
 /obj/structure/machinery/sub_physical/proc/can_use_sub(mob/user)

@@ -513,3 +513,11 @@
 	override_material = TRUE
 	anchored = TRUE
 	health = 1200
+
+/obj/structure/simple_door/blast/New(var/newloc, var/material_name)
+	..()
+	sub_blast_doors |= src
+
+/obj/structure/simple_door/blast/Destroy()
+	sub_blast_doors -= src
+	..()
