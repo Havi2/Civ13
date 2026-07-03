@@ -553,14 +553,13 @@ var/global/list/all_submarines = list()
 	r_scrammed[index] = TRUE
 	r_power_output[index] = 0
 	if(reactor_hum_channel)
-		for(var/mob/M in world)
-			if(M.client)
-				M << sound(null, channel = reactor_hum_channel)
+		for(var/client/C in clients)
+			C << sound(null, channel = reactor_hum_channel)
 		reactor_hum_channel = 0
-	
+
 	// Find the reactor core object for this index
 	var/obj/structure/machinery/sub_physical/reactor_core/the_core
-	for(var/obj/structure/machinery/sub_physical/reactor_core/R in world)
+	for(var/obj/structure/machinery/sub_physical/reactor_core/R in sub_physical_machines)
 		if(R.id == index)
 			the_core = R
 			break
@@ -931,7 +930,7 @@ var/global/list/all_submarines = list()
 		qdel(CM)
 
 	// Auto-detect crew from mobs on the sub's Z-level
-	for(var/mob/living/human/H in world)
+	for(var/mob/living/human/H in human_mob_list)
 		if(H.stat == DEAD) continue
 		var/turf/floor/sub_deck/T = get_turf(H)
 		if(T && istype(T) && (T in internal_turfs))
