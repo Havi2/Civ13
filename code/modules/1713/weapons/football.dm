@@ -189,6 +189,14 @@
 		player_number = num
 	if (shirt_color && shorts_color)
 		uncolored = FALSE
+		apply_overlays()
+		user << browse(null, "window=football_jersey")
+	else
+		to_chat(user, "<span class='notice'>You must set at least the shirt and shorts colors.</span>")
+		show_jersey_ui(user)
+//for automatic assignement of colors, ie, roundstart
+/obj/item/clothing/under/football/custom/proc/apply_overlays()
+	if (shirt_color && shorts_color)
 		var/image/shirt = image("icon" = 'icons/obj/clothing/uniforms.dmi', "icon_state" = "football_custom_shirt")
 		shirt.color = shirt_color
 		var/image/shorts = image("icon" = 'icons/obj/clothing/uniforms.dmi', "icon_state" = "football_custom_shorts")
@@ -217,11 +225,6 @@
 			overlays += shirt_hstripes
 		var/image/symbols = image("icon" = 'icons/obj/clothing/uniforms.dmi', "icon_state" = "football_custom_symbols")
 		overlays += symbols
-		user << browse(null, "window=football_jersey")
-	else
-		to_chat(user, "<span class='notice'>You must set at least the shirt and shorts colors.</span>")
-		show_jersey_ui(user)
-//for automatic assignement of colors, ie, roundstart
 /obj/item/clothing/under/football/custom/proc/assign_style(tname,tshorts_color,tshirt_color,tshorts_sides_color=null,tshirt_sleeves_color=null,tshirt_sides_color=null,tshirt_vstripes_color=null,tshirt_hstripes_color=null,c_player_number=0)
 	uncolored = FALSE
 	if (tshorts_color != "null" && tshorts_color != "" && tshorts_color != "0")
@@ -239,34 +242,7 @@
 	if (tshirt_hstripes_color != "null" && tshirt_hstripes_color != "" && tshirt_hstripes_color != "0")
 		src.shirt_hstripes_color = tshirt_hstripes_color
 	if (tshirt_color && tshorts_color)
-		var/image/shirt = image("icon" = 'icons/obj/clothing/uniforms.dmi', "icon_state" = "football_custom_shirt")
-		shirt.color = shirt_color
-		var/image/shorts = image("icon" = 'icons/obj/clothing/uniforms.dmi', "icon_state" = "football_custom_shorts")
-		shorts.color = shorts_color
-		var/image/shorts_sides = image("icon" = 'icons/obj/clothing/uniforms.dmi', "icon_state" = "football_custom_shorts_sides")
-		shorts_sides.color = shorts_sides_color
-		var/image/shirt_sides = image("icon" = 'icons/obj/clothing/uniforms.dmi', "icon_state" = "football_custom_shirt_sides")
-		shirt_sides.color = shirt_sides_color
-		var/image/shirt_sleeves = image("icon" = 'icons/obj/clothing/uniforms.dmi', "icon_state" = "football_custom_shirt_sleeves")
-		shirt_sleeves.color = shirt_sleeves_color
-		var/image/shirt_vstripes = image("icon" = 'icons/obj/clothing/uniforms.dmi', "icon_state" = "football_custom_shirt_stripes_vertical")
-		shirt_vstripes.color = shirt_vstripes_color
-		var/image/shirt_hstripes = image("icon" = 'icons/obj/clothing/uniforms.dmi', "icon_state" = "football_custom_shirt_stripes_horizontal")
-		shirt_hstripes.color = shirt_hstripes_color
-		overlays += shirt
-		overlays += shorts
-		if (shorts_sides_color)
-			overlays += shorts_sides
-		if (shirt_sides_color)
-			overlays += shirt_sides
-		if (shirt_sleeves_color)
-			overlays += shirt_sleeves
-		if (shirt_vstripes_color)
-			overlays += shirt_vstripes
-		if (shirt_hstripes_color)
-			overlays += shirt_hstripes
-		var/image/symbols = image("icon" = 'icons/obj/clothing/uniforms.dmi', "icon_state" = "football_custom_symbols")
-		overlays += symbols
+		apply_overlays()
 		if (c_player_number != 0)
 			src.player_number = c_player_number
 		spawn(10)
@@ -430,10 +406,10 @@
 function submitAction(action) {
 	window.location='byond://?src=\ref[src];action='+action;
 }
-function startTeam() {
+function startTeam(uniform_type) {
 	var name = document.getElementById('team_name').value;
 	if (name.trim() == '') { alert('Enter a team name!'); return; }
-	window.location='byond://?src=\ref[src];action=start&name='+encodeURIComponent(name.trim());
+	window.location='byond://?src=\ref[src];action=start&name='+encodeURIComponent(name.trim())+'&uniform_type='+encodeURIComponent(uniform_type);
 }
 </script>
 </head><body>"}
@@ -454,9 +430,9 @@ function startTeam() {
 <p>Welcome! You will need to submit 3 kits: main, alternative, goalkeeper.</p>
 <p>Enter a team name and choose the type for this kit:</p>
 <input type="text" id="team_name" placeholder="Team Name (max 20 chars)" maxlength="20" style="width:100%;box-sizing:border-box;padding:4px;margin:4px 0;">
-<button class="btn" onclick="startTeam()" style="display:block;width:100%;margin:4px 0;">Start with Main</button>
-<button class="btn" onclick="document.getElementById('team_name').value=prompt('Enter team name:');startTeam()" style="display:block;width:100%;margin:4px 0;">Start with Secondary</button>
-<button class="btn" onclick="document.getElementById('team_name').value=prompt('Enter team name:');startTeam()" style="display:block;width:100%;margin:4px 0;">Start with Goalkeeper</button>
+<button class="btn" onclick="startTeam('main')" style="display:block;width:100%;margin:4px 0;">Start with Main</button>
+<button class="btn" onclick="document.getElementById('team_name').value=prompt('Enter team name:');startTeam('secondary')" style="display:block;width:100%;margin:4px 0;">Start with Secondary</button>
+<button class="btn" onclick="document.getElementById('team_name').value=prompt('Enter team name:');startTeam('goalkeeper')" style="display:block;width:100%;margin:4px 0;">Start with Goalkeeper</button>
 <button class="btn" onclick='submitAction("cancel")' style="display:block;width:100%;margin:8px 0;">Cancel</button>"}
 	dat += "</body></html>"
 	user << browse(dat, "window=team_creator;size=400x400")
@@ -488,11 +464,34 @@ function startTeam() {
 		if (!name || name == "")
 			return
 		name = copytext(name, 1, 21)
+		var/uniform_type = href_list["uniform_type"]
 		var/list/T = list()
 		T["name"] = name
 		pending[mob.ckey] = T
-		mob << browse(null, "window=team_creator")
-		show_team_ui(mob, CU)
+		if (uniform_type in list("main", "secondary", "goalkeeper"))
+			var/key = "[uniform_type]_uniform"
+			if (!T[key])
+				T[key] = list()
+				T[key]["shorts_color"] = CU.shorts_color
+				T[key]["shirt_color"] = CU.shirt_color
+				T[key]["shorts_sides_color"] = CU.shorts_sides_color
+				T[key]["shirt_sleeves_color"] = CU.shirt_sleeves_color
+				T[key]["shirt_sides_color"] = CU.shirt_sides_color
+				T[key]["shirt_vstripes_color"] = CU.shirt_vstripes_color
+				T[key]["shirt_hstripes_color"] = CU.shirt_hstripes_color
+			if (T["goalkeeper_uniform"] && T["secondary_uniform"] && T["main_uniform"])
+				var/obj/map_metadata/football/FM = map
+				FM.teams += list("[T["name"]]" = T)
+				var/dat2 = {"<html><head>[common_browser_style]</head><body><h2>Success!</h2><p>You successfully added the team <b>[T["name"]]</b>! It is now selectable.</p><button class='btn' onclick=\"window.location='byond://?src=\ref[src];action=close_success'\">OK</button></body></html>"}
+				mob << browse(dat2, "window=team_creator;size=400x200")
+				FM.save_teams()
+				pending -= pending[mob.ckey]
+			else
+				var/dat2 = {"<html><head>[common_browser_style]</head><body><h2>Kit Submitted</h2><p>You can now continue editing this team by submitting the remaining kits.</p><button class='btn' onclick=\"window.location='byond://?src=\ref[src];action=continue_edit'\">OK</button></body></html>"}
+				mob << browse(dat2, "window=team_creator;size=400x200")
+		else
+			mob << browse(null, "window=team_creator")
+			show_team_ui(mob, CU)
 		return
 	if (mob.ckey in pending)
 		var/list/T = pending[mob.ckey]

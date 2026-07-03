@@ -16,11 +16,6 @@
 				if (!NEAR && PNEAR != src && PNEAR.civilization == src.civilization)
 					NEAR = PNEAR
 					break
-			if (!NEAR)
-				for (var/mob/living/human/PNEAR in range(3,src))
-					if (!NEAR && PNEAR != src && PNEAR.civilization == src.civilization)
-						NEAR = PNEAR
-						break
 	if (NEAR)
 		var/obj/item/football/FB = src.football
 		src.do_attack_animation(src.football)
@@ -60,7 +55,7 @@
 		var/tgt_y = eye.y + (src.client.mouse_screen_y - (view_radius + 1))
 		tgt = locate(tgt_x, tgt_y, eye.z)
 
-	if (tgt && FB && src.football)
+	if (tgt && FB)
 		FB.throw_at(tgt, FB.throw_range, FB.throw_speed, src)
 
 //no ball, pressing Z
@@ -91,7 +86,7 @@
 	if (!A)
 		var/mob/living/human/NEAR = null
 		for (var/mob/living/human/PNEAR in range(1,src))
-			if (!NEAR && PNEAR != src && PNEAR.civilization == src.civilization)
+			if (!NEAR && PNEAR != src && PNEAR.civilization != src.civilization)
 				if (PNEAR.football)
 					NEAR = PNEAR
 					break
