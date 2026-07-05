@@ -97,6 +97,8 @@ var/world_is_open = TRUE
 
 	// This is kinda important. Set up details of what the hell things are made of.
 	populate_material_list()
+	// Build the shared research-tree node registry (faction-agnostic).
+	build_research_tree()
 	processScheduler = new
 
 	spawn(1)

@@ -47,7 +47,8 @@ var/datum/process_list/processes = new
 	// (processes not yet migrated to a subsystem remain here)
 	var/process/callproc/callproc = null
 	var/process/submarine/submarine = null
-	
+	var/process/research_tree/research_tree = null
+
 	// Lighting members are separate because they run too often
 	var/process/lighting_sources/lighting_sources = null
 	var/process/lighting_overlays/lighting_overlays = null

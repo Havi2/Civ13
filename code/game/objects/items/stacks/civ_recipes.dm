@@ -62,7 +62,7 @@
 					current_res = map.civb_research
 			if (user.s_tone <= -175 && map.ID == MAP_NOMADS_AFRICA)
 				faction = "pygmy"
-			generate_recipes_civs(current_res,faction)
+			generate_recipes_civs(current_res, faction, user ? user.civilization : null)
 		else
 			var/list/current_res = list(0,0,0)
 			if (map)
@@ -90,10 +90,10 @@
 					current_res = map.custom_civs[user.civilization]
 			if (map && map.override_global_recipes != "global")
 				faction = map.override_global_recipes
-			generate_recipes_civs(current_res,faction)
+			generate_recipes_civs(current_res, faction, user ? user.civilization : null)
 	return recipes
 
-/material/proc/generate_recipes_civs(var/list/current_res = list(0,0,0), faction = "global")
+/material/proc/generate_recipes_civs(var/list/current_res = list(0,0,0), faction = "global", research_faction = null)
 
 	recipes = list()
 	var/chosen_list = craftlist_lists[faction]
@@ -101,7 +101,16 @@
 		recipes += new/datum/stack_recipe("[display_name] fork", /obj/item/weapon/material/kitchen/utensil/fork, TRUE, _on_floor = TRUE, _supplied_material = "[name]")
 		recipes += new/datum/stack_recipe("[display_name] spoon", /obj/item/weapon/material/kitchen/utensil/spoon, TRUE, _on_floor = TRUE, _supplied_material = "[name]")
 	for(var/i in chosen_list)
-		if(i[1]== "[type]/" && current_res[1]>=text2num(i[9]) && current_res[2]>=text2num(i[10]) && current_res[3]>=text2num(i[11]) && map && map.ordinal_age <= text2num(i[12]))
+		// A recipe mapped to a research node gates on that node being DONE for
+		// the faction; otherwise it keeps the legacy research-threshold check.
+		// Era gating (i[12]) applies in both cases.
+		var/node_req = get_recipe_node_req(i[3])
+		var/research_allowed
+		if (node_req && research_faction && map)
+			research_allowed = map.is_node_done(research_faction, node_req)
+		else
+			research_allowed = (current_res[1]>=text2num(i[9]) && current_res[2]>=text2num(i[10]) && current_res[3]>=text2num(i[11]))
+		if(i[1]== "[type]/" && research_allowed && map && map.ordinal_age <= text2num(i[12]))
 			var/supmat = i[13]
 			if (supmat == "null")
 				supmat = null

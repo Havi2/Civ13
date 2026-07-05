@@ -160,6 +160,10 @@
 
 	var/civilization = "none" //what civilization this person belongs to
 	var/leader = FALSE
+	// Research-tree appointment (see code/modules/research_tree/). "researcher"
+	// or null; the Research Director is tracked per-faction on the map metadata,
+	// not here. Only meaningful within the holder's own civilization.
+	var/research_role = null
 	//leadership (total control!), announcement, give titles, recruitment
 	var/list/faction_perms = list(0,0,0,0)
 	var/title = ""

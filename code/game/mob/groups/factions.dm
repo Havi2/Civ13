@@ -138,6 +138,10 @@
 		var/mob/living/human/L = civ_data[4]
 		if (L.real_name == real_name)
 			civ_data[4] = null
+	// Shed any research-tree appointment so it can't carry into a new faction.
+	if (map && map.faction_research_director[civilization] == src)
+		map.faction_research_director[civilization] = null
+	research_role = null
 	civilization = "none"
 	name = replacetext(real_name,"[title] ","")
 	title = ""

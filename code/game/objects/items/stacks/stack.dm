@@ -522,6 +522,14 @@
 		customname = input("What name to give to the statue?", "Statue", "[recipe.use_material] statue") as text
 		customdesc = input("What description to add to the statue?", "Statue", "A [recipe.use_material] statue.") as text
 
+	else if (recipe.result_type == /obj/structure/research_bench)
+		if (!H.civilization || H.civilization == "none")
+			to_chat(user, "Only members of a faction can build a research bench.")
+			return
+		if (map && map.count_faction_benches(H.civilization) >= map.get_bench_cap(H.civilization))
+			to_chat(user, "Your faction already has as many research benches as it can support ([map.get_bench_cap(H.civilization)]). Build a resource forge to raise the cap.")
+			return
+
 	else if (recipe.result_type == /obj/structure/researchdesk)
 		if (map && !map.resourceresearch)
 			to_chat(user, "\The [recipe.title] can only be built during <b>Research</b> gamemodes.")
@@ -2074,6 +2082,11 @@
 			FB.symbol = map.custom_civs[H.civilization][6]
 			FB.color1 = map.custom_civs[H.civilization][7]
 			FB.color2 = map.custom_civs[H.civilization][8]
+		else if (istype(O, /obj/structure/research_bench))
+			// The bench belongs to the faction that built it (Phase 4.1).
+			var/obj/structure/research_bench/RBN = O
+			if (H.civilization && H.civilization != "none")
+				RBN.faction = H.civilization
 		else if (istype(O, /obj/structure/altar))
 			var/obj/structure/altar/P = O
 			P.religion = H.religion

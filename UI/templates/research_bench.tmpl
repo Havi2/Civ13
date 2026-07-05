@@ -1,0 +1,90 @@
+<!--
+	Interface for research benches
+	See: code/modules/research_tree/research_bench.dm
+-->
+<style>
+	.rt-node { margin-bottom: 4px; overflow: hidden; }
+	.rt-name { font-weight: bold; }
+	.rt-detail { color: #aaaaaa; font-size: 0.9em; }
+	.rt-done { color: #2f943c; font-weight: bold; }
+	.rt-progress { color: #d4a017; }
+	.rt-locked { color: #888888; }
+</style>
+
+<div class='item'>
+	<div class='itemLabel'>Bench tier:</div>
+	<div class='itemContent'>{{:data.bench_tier}} / {{:data.max_tier}}
+		{{if data.tier_upgrade_cost}} (upgrade progress: {{:data.tier_progress}}/{{:data.tier_upgrade_cost}} value fed){{/if}}
+	</div>
+	<div class='itemLabel'>Owned by:</div>
+	<div class='itemContent'>{{:data.bench_faction ? data.bench_faction : "Unclaimed"}}</div>
+	{{if data.has_faction}}
+	<div class='itemLabel'>You are viewing as:</div>
+	<div class='itemContent'>{{:data.viewer_role}} of the {{:data.viewer_faction}}</div>
+	<div class='itemLabel'>Your faction's benches:</div>
+	<div class='itemContent'>{{:data.viewer_bench_count}} / {{:data.viewer_cap}}</div>
+	{{/if}}
+	{{if data.can_claim}}
+	<div class='item'>The owning faction has died out.
+		{{:helper.link('Claim this bench for your faction', 'circle-plus', {'claim' : 1})}}
+	</div>
+	{{else data.bench_faction && !data.owns_bench}}
+	<div class='item rt-locked'>This bench belongs to another faction. You can only observe it.</div>
+	{{/if}}
+</div>
+
+{{if data.owns_bench && (data.is_leader || data.is_director)}}
+<h2>Research Staff</h2>
+<div class='item'>
+	{{if data.is_leader}}
+	<div class='item'>
+		{{if data.has_director}}
+		{{:helper.link('Reassign ' + data.director_title, 'person', {'appoint_director' : 1})}}
+		{{:helper.link('Rename role', 'pencil', {'set_director_title' : 1})}}
+		{{:helper.link('Dismiss ' + data.director_title, 'trash', {'dismiss_director' : 1})}}
+		{{else}}
+		{{:helper.link('Appoint a Research Director', 'person', {'appoint_director' : 1})}}
+		{{/if}}
+	</div>
+	{{/if}}
+	<div class='item'>
+		{{:helper.link('Appoint a Researcher', 'circle-plus', {'appoint_researcher' : 1})}}
+		{{:helper.link('Dismiss a Researcher', 'circle-minus', {'dismiss_researcher' : 1})}}
+	</div>
+</div>
+{{/if}}
+
+{{if data.assigned_name}}
+<h2>Currently Researching: {{:data.assigned_name}}</h2>
+<div class='item'>
+	{{if data.assigned_done}}
+	<div class='itemContent rt-done'>Completed!</div>
+	{{if data.can_write_notes}}
+	<div class='item'>{{:helper.link('Write research notes (quick, boosts a buyer)', 'pencil', {'write_notes' : 1})}}</div>
+	{{/if}}
+	{{if data.can_write_book}}
+	<div class='item'>{{:helper.link('Write a research book (slow, completes for a buyer)', 'copy', {'write_book' : 1})}}</div>
+	{{/if}}
+	{{else}}
+	<div class='itemContent rt-progress'>{{:data.assigned_status_text}}</div>
+	{{/if}}
+</div>
+{{/if}}
+
+{{for data.layers}}
+<h2>{{:value.layer_name}}</h2>
+<div class='item'>
+	{{for value.nodes}}
+	<div class='rt-node'>
+		{{if value.assignable}}
+		<div style='float'>{{:helper.link('Assign', 'circle-arrow-s', { "assign" : value.id })}}</div>
+		{{/if}}
+		<div class='itemContent'>
+			<span class='rt-name'>{{:value.name}}</span> -
+			<span class='{{if value.status_text == "Done"}}rt-done{{else value.status_text == "In Progress"}}rt-progress{{else value.status_text == "Locked"}}rt-locked{{/if}}'>{{:value.status_text}}</span>
+			<div class='rt-detail'>{{:value.detail}}</div>
+		</div>
+	</div>
+	{{/for}}
+</div>
+{{/for}}
