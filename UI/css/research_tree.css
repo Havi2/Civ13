@@ -113,6 +113,18 @@
 	background: #e6f0da;
 }
 
+/* Lit up when the opened node needs this one researched first (directly or
+   transitively). Overrides the dimmed rt-status-locked look so the whole
+   outstanding chain stands out clearly against the rest of the tree. */
+.rt-node.rt-ancestor-highlight {
+	opacity: 1;
+	filter: none;
+	background: #f8ecc4;
+	border-color: #c98a1d;
+	border-left-color: #c98a1d;
+	box-shadow: 0 0 0 1px #c98a1d;
+}
+
 .rt-node-name {
 	font-weight: bold;
 	color: #2f2211;
@@ -142,7 +154,7 @@
 
 /* --- assign / staff links (reuse the framework's linkActive markup) --- */
 
-#rt-root .link, #rt-root .linkActive {
+#rt-root .link, #rt-root .linkActive, #rt-modal .link, #rt-modal .linkActive {
 	font-family: Verdana, Geneva, sans-serif;
 	background: #e9dcb8;
 	border: 1px solid #a98c5c;
@@ -154,7 +166,7 @@
 	cursor: pointer;
 }
 
-#rt-root .linkActive:hover {
+#rt-root .linkActive:hover, #rt-modal .linkActive:hover {
 	background: #f8f1da;
 	border-color: #7a5a2c;
 }
@@ -189,6 +201,12 @@
 	max-width: 86%;
 	padding: 14px 16px;
 	font-size: 12px;
+	font-family: Verdana, Geneva, sans-serif;
+	/* The modal lives outside #rt-root in the DOM (it's a sibling shell, not
+	   a descendant), so it never inherits the parchment root's dark ink
+	   color -- without this it falls back to the base NanoUI theme's white
+	   body text, invisible against this cream background. */
+	color: #3a2c1a;
 }
 
 #rt-modal-close {
