@@ -113,10 +113,16 @@
 
 .rt-grid {
 	display: grid;
-	grid-template-columns: repeat(9, minmax(96px, 1fr));
+	/* Fixed width, not 1fr/minmax -- the tree does not need to be squeezed to
+	   fit inside the window's fixed size. It's free to run wider than the
+	   viewport; the browser's own scrollbars handle the rest. 14 columns
+	   comfortably covers the deepest prereq chain in the current tree with
+	   room to grow. */
+	grid-template-columns: repeat(14, 130px);
 	grid-auto-rows: min-content;
 	gap: 8px 10px;
 	position: relative;
+	width: max-content;
 }
 
 .rt-node {
@@ -141,8 +147,18 @@
 .rt-node.rt-layer-health { border-left-color: #2c5c3a; }
 
 .rt-node.rt-status-locked {
-	opacity: 0.5;
-	filter: grayscale(60%);
+	/* Solid, not translucent: opacity affects the WHOLE element (background
+	   included), which is what let the connector lines show through locked
+	   squares. grayscale() alone dims the colors without introducing any
+	   transparency, so the card stays fully opaque. */
+	background: #dcd3b8;
+	border-color: #9a8a68;
+	filter: grayscale(65%);
+}
+
+.rt-node.rt-status-locked .rt-node-name,
+.rt-node.rt-status-locked .rt-node-sub {
+	color: #8a7a5c;
 }
 
 .rt-node.rt-status-done {
@@ -172,6 +188,12 @@
 	color: #6b5230;
 	font-size: 10px;
 	font-style: italic;
+}
+
+/* Marks a node that advances the era on completion (Prototype-mode capstones). */
+.rt-star {
+	color: #c98a1d;
+	font-style: normal;
 }
 
 .rt-node-bar {

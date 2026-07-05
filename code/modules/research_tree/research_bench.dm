@@ -69,6 +69,12 @@ var/global/list/research_benches = list()
 	if (!map.node_prereqs_met(faction, assigned_node))
 		return
 	map.add_research_ticks(faction, assigned_node, base_tick_rate)
+	// Push a refresh to anyone currently viewing this bench. There's no
+	// blind polling (see ui_interact()) -- this is the only thing that
+	// changes this bench's own data outside of a player's own Topic() call
+	// (which already triggers its own update), so it's also the only thing
+	// that needs to trigger one here.
+	GLOB.nanomanager.update_uis(src)
 
 /obj/structure/research_bench/attack_hand(mob/user as mob)
 	if (!ishuman(user))
@@ -333,6 +339,14 @@ var/global/list/research_benches = list()
 			"id" = node_id,
 			"name" = N.name,
 			"era_tier" = N.era_tier,
+			// Grid column: topological depth, not raw era_tier. Several
+			// cross-branch prereqs share their dependent's era (e.g. Steel
+			// Blades and its prereq Iron Smithing are both era 2); depth
+			// guarantees a prereq always lands strictly before whatever
+			// depends on it, letting same-era co-dependent chains spread
+			// across columns/rows instead of overlapping in one column.
+			"grid_col" = get_node_depth(node_id),
+			"is_era_changing" = (N.mode == RESEARCH_MODE_PROTOTYPE),
 			"cost_ticks" = N.cost_ticks,
 			"min_bench_tier" = N.min_bench_tier,
 			"mode_text" = mode_text,
@@ -353,7 +367,12 @@ var/global/list/research_benches = list()
 		ui.add_script("research_tree.js")
 		ui.set_initial_data(data)
 		ui.open()
-		ui.set_auto_update(1)
+		// No auto_update: that polls and fully re-renders every ~1s regardless
+		// of whether anything changed, which is what was causing the whole
+		// window to visibly flash/reset constantly. Ticks land every 10s at
+		// most (see analysis_tick()), and every player action already pushes
+		// its own refresh via Topic() -- so updates now only fire when this
+		// bench's data actually changes, not on a blind fixed heartbeat.
 
 /obj/structure/research_bench/Topic(href, href_list)
 	if (!istype(usr, /mob/living/human))

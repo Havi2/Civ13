@@ -48,6 +48,36 @@ var/global/list/recipe_names_by_node = null
 	var/list/result = recipe_names_by_node[node_id]
 	return result ? result : list()
 
+// Topological depth: 1 for a node with no prereqs, otherwise 1 + the deepest
+// of its prereqs' depths. Used for the tree UI's grid column instead of raw
+// era_tier, since several cross-branch prereqs share their dependent's era
+// (e.g. Steel Blades and its prereq Iron Smithing are both era 2) -- placing
+// both in an era-numbered column would put a prereq in the SAME column as
+// (or, worse, visually after) something that depends on it. Depth guarantees
+// every prereq lands in a strictly earlier column than its dependents,
+// regardless of what era either one belongs to.
+var/global/list/node_depth_cache = null
+
+/proc/get_node_depth(node_id, list/visiting = null)
+	if (!node_depth_cache)
+		node_depth_cache = list()
+	var/cached = node_depth_cache[node_id]
+	if (cached)
+		return cached
+	var/datum/research_node/N = get_research_node(node_id)
+	if (!N)
+		return 1
+	if (!visiting)
+		visiting = list()
+	if (visiting[node_id]) // guards against a malformed/cyclic prereq graph
+		return 1
+	visiting[node_id] = TRUE
+	var/depth = 1
+	for (var/req in N.prereqs)
+		depth = max(depth, get_node_depth(req, visiting) + 1)
+	node_depth_cache[node_id] = depth
+	return depth
+
 /datum/research_node
 	var/id = null                    // unique string key, e.g. "basic_tools"
 	var/name = "research node"       // display name

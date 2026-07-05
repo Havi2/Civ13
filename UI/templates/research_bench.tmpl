@@ -76,8 +76,8 @@
 			<div class='rt-node rt-layer-{{:layer.layer_name.toLowerCase()}} {{:node.status_text === "Done" ? "rt-status-done" : (node.status_text === "Locked" ? "rt-status-locked" : "rt-status-active")}}'
 				data-id='{{:node.id}}'
 				data-prereqs='{{:node.prereq_ids}}'
-				style='grid-column: {{:node.era_tier + 1}};'>
-				<span class='rt-node-name'>{{:node.name}}</span>
+				style='grid-column: {{:node.grid_col}};'>
+				<span class='rt-node-name'>{{:node.name}}{{if node.is_era_changing}} <span class='rt-star' title='Advances the era'>&#9733;</span>{{/if}}</span>
 				<span class='rt-node-sub'>{{:node.mode_text === "Book only" ? "Book only" : node.cost_ticks + " ticks" + (node.mode_text === "Prototype" ? " (or prototype)" : "")}}</span>
 				<div class='rt-node-bar'><div class='rt-node-bar-fill' style='width: {{:node.progress_percent}}%;'></div></div>
 			</div>
@@ -95,8 +95,8 @@
 	{{for data.layers :layer:li}}
 	{{for layer.nodes :node:ni}}
 	<div id='rt-detail-{{:node.id}}'>
-		<div class='rt-modal-title'>{{:node.name}}</div>
-		<div class='rt-modal-sub'>{{:layer.layer_name}} - era {{:node.era_tier}} - {{:node.mode_text}}</div>
+		<div class='rt-modal-title'>{{:node.name}}{{if node.is_era_changing}} <span class='rt-star' title='Advances the era'>&#9733;</span>{{/if}}</div>
+		<div class='rt-modal-sub'>{{:layer.layer_name}} - era {{:node.era_tier}} - {{:node.mode_text}}{{if node.is_era_changing}} - advances the era{{/if}}</div>
 
 		<div class='rt-modal-row'>
 			<div class='rt-modal-label'>Status</div>
