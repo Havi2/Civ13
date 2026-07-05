@@ -22,6 +22,32 @@ var/global/list/recipe_node_requirements = list()
 /proc/get_recipe_node_req(result_path_string)
 	return recipe_node_requirements[result_path_string]
 
+// Reverse index: node id => list of unique recipe display names it unlocks.
+// Built lazily (not at boot) and cached, since craftlist_lists is only
+// populated partway through world/New() -- by the time any player actually
+// opens a bench UI, boot has long finished, so there's no ordering hazard.
+// "global" is representative enough for a UI hint list even though a few
+// faction-specific catalogues rename or add entries.
+var/global/list/recipe_names_by_node = null
+
+/proc/get_node_recipe_names(node_id)
+	if (!recipe_names_by_node)
+		recipe_names_by_node = list()
+		for (var/list/i in craftlist_lists["global"])
+			if (!istype(i) || i.len < 3)
+				continue
+			var/node_req = get_recipe_node_req(i[3])
+			if (!node_req)
+				continue
+			var/list/names = recipe_names_by_node[node_req]
+			if (!names)
+				names = list()
+				recipe_names_by_node[node_req] = names
+			if (!(i[2] in names))
+				names += i[2]
+	var/list/result = recipe_names_by_node[node_id]
+	return result ? result : list()
+
 /datum/research_node
 	var/id = null                    // unique string key, e.g. "basic_tools"
 	var/name = "research node"       // display name

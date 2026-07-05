@@ -290,10 +290,12 @@ var/global/list/research_benches = list()
 		var/status_text
 		var/status_class
 		var/detail
+		var/progress_percent = 0
 		switch (status)
 			if (RNODE_DONE)
 				status_text = "Done"
 				status_class = "linkOn"
+				progress_percent = 100
 				var/list/entry = map.get_node_entry(viewer_faction, node_id)
 				detail = (entry && entry[RNODE_ENTRY_TICKS] > 0) ? "Completed" : "Baseline (free at this era)"
 			if (RNODE_IN_PROGRESS)
@@ -301,7 +303,8 @@ var/global/list/research_benches = list()
 				status_class = "linkOff"
 				var/list/entry = map.get_node_entry(viewer_faction, node_id)
 				var/ticks = entry ? entry[RNODE_ENTRY_TICKS] : 0
-				detail = "[round((ticks / N.cost_ticks) * 100)]% ([ticks]/[N.cost_ticks])"
+				progress_percent = round((ticks / N.cost_ticks) * 100)
+				detail = "[progress_percent]% ([ticks]/[N.cost_ticks])"
 			if (RNODE_AVAILABLE)
 				status_text = "Available"
 				status_class = "linkOff"
@@ -315,18 +318,39 @@ var/global/list/research_benches = list()
 						var/datum/research_node/RN = get_research_node(req)
 						missing += RN ? RN.name : req
 				detail = missing.len ? "Requires: [jointext(missing, ", ")]" : "Requires an earlier era"
+		var/mode_text = "Passive study"
+		if (N.mode == RESEARCH_MODE_PROTOTYPE)
+			mode_text = "Prototype"
+		else if (N.mode == RESEARCH_MODE_BOOK)
+			mode_text = "Book only"
+		var/list/prereq_ids = list()
+		var/list/prereq_names = list()
+		for (var/req in N.prereqs)
+			prereq_ids += req
+			var/datum/research_node/RN = get_research_node(req)
+			prereq_names += RN ? RN.name : req
 		layer_entry["nodes"] += list(list(
 			"id" = node_id,
 			"name" = N.name,
+			"era_tier" = N.era_tier,
+			"cost_ticks" = N.cost_ticks,
+			"min_bench_tier" = N.min_bench_tier,
+			"mode_text" = mode_text,
+			"prereq_ids" = jointext(prereq_ids, ","),
+			"prereq_names" = prereq_names.len ? jointext(prereq_names, ", ") : "None",
+			"recipe_names" = get_node_recipe_names(node_id),
 			"status_text" = status_text,
 			"status_class" = status_class,
 			"detail" = detail,
+			"progress_percent" = progress_percent,
 			"assignable" = can_manage && can_assign_node(node_id)))
 	data["layers"] = layers
 
 	ui = GLOB.nanomanager.try_update_ui(user, src, ui_key, ui, data, force_open)
 	if (!ui)
-		ui = new(user, src, ui_key, "research_bench.tmpl", name, 720, 620)
+		ui = new(user, src, ui_key, "research_bench.tmpl", name, 900, 680)
+		ui.add_stylesheet("research_tree.css")
+		ui.add_script("research_tree.js")
 		ui.set_initial_data(data)
 		ui.open()
 		ui.set_auto_update(1)

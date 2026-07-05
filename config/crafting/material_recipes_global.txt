@@ -1608,7 +1608,7 @@ RECIPE: /material/steel/,shopping cart,/obj/structure/shopping_cart,30,190,1,1,l
 
 //MID BRONZE AGE//
 RECIPE: /material/steel/,coin smelter,/obj/structure/machinery/factory/coinsmelter,50,190,1,1,none,25,0,0,9,null
-RECIPE: /material/steel/,resource forge,/obj/structure/research_forge,40,240,1,1,economy & production,0,0,0,9,null
+RECIPE: /material/copper/,resource forge,/obj/structure/research_forge,40,240,1,1,economy & production,0,0,0,8,null
 //MID BRONZE AGE//
 
 //**************************************************************
