@@ -40,6 +40,8 @@
 	var/stopped_until = 0
 	var/list/player_count_red = list(1,2,3,4,5,6,7,8,9,10,11)
 	var/list/player_count_blue = list(1,2,3,4,5,6,7,8,9,10,11)
+	var/list/player_count_red_init = list(1,2,3,4,5,6,7,8,9,10,11)
+	var/list/player_count_blue_init = list(1,2,3,4,5,6,7,8,9,10,11)
 	New()
 		..()
 		load_teams()
@@ -101,6 +103,13 @@
 			GR.assign()
 		for (var/obj/effect/step_trigger/goal/blue/GB in world)
 			GB.assign()
+		for (var/mob/living/human/H in player_list)
+			if (H.civilization == team1 || istype(H.original_job, /datum/job/civilian/football_red))
+				H.civilization = team1
+				H.team = team1
+			else if (H.civilization == team2 || istype(H.original_job, /datum/job/civilian/football_blue))
+				H.civilization = team2
+				H.team = team2
 /obj/map_metadata/football/proc/save_teams()
 	var/F = file("SQL/sports_teams.txt")
 	if (fexists(F))
@@ -143,7 +152,7 @@
 				to_chat(world, "<font size=3>[i]: <b>[tmplistc[i]]</b> goal</font>")
 /obj/map_metadata/football/update_win_condition()
 
-	if (processes.ticker.playtime_elapsed >= match_duration || world.time >= next_win && next_win != -1)
+	if ((processes.ticker.playtime_elapsed >= match_duration || (world.time >= next_win && next_win != -1)))
 		if (win_condition_spam_check)
 			return FALSE
 		ticker.finished = TRUE
@@ -189,6 +198,10 @@
 /obj/map_metadata/football/proc/reset_ball()
 	stopped = TRUE
 	stopped_until = world.time + 200
+	to_chat(world, "<font size=3 color='yellow'><b>Goal! Play stopped - returning to positions...</b></font>")
+	var/whistle = sound("sound/effects/football_whistle.ogg", repeat = FALSE, wait = TRUE, channel = 777)
+	for (var/mob/M in player_list)
+		M.client << whistle
 	for (var/mob/living/human/H in player_list)
 		var/turf/spawnpoint = null
 		var/list/turfs = latejoin_turfs[H.original_job.spawn_location]
@@ -205,6 +218,10 @@
 		FB.loc = spawnpoint
 	spawn(200)
 		stopped = FALSE
+		to_chat(world, "<font size=3 color='yellow'><b>Play resumes!</b></font>")
+		var/whistle2 = sound("sound/effects/football_whistle.ogg", repeat = FALSE, wait = TRUE, channel = 777)
+		for (var/mob/M in player_list)
+			M.client << whistle2
 
 ///////////////////////////////////////////////////
 /mob/living/human/var/team = null
@@ -230,6 +247,9 @@
 		FR.assign_style(FM.teams[FM.team1][1],FM.teams[FM.team1][FM.team1_kit]["shorts_color"],FM.teams[FM.team1][FM.team1_kit]["shirt_color"],FM.teams[FM.team1][FM.team1_kit]["shorts_sides_color"],FM.teams[FM.team1][FM.team1_kit]["shirt_sleeves_color"],FM.teams[FM.team1][FM.team1_kit]["shirt_sides_color"],FM.teams[FM.team1][FM.team1_kit]["shirt_vstripes_color"],FM.teams[FM.team1][FM.team1_kit]["shirt_hstripes_color"],0)
 		if (!isemptylist(FM.player_count_red))
 			FR.player_number = pick(FM.player_count_red)
+			FM.player_count_red -= FR.player_number
+			if (isemptylist(FM.player_count_red))
+				FM.player_count_red = FM.player_count_red_init.Copy()
 			FR.update_icon()
 	..()
 	return TRUE
@@ -259,6 +279,9 @@
 		FR.assign_style(FM.teams[FM.team1][1],FM.teams[FM.team1]["goalkeeper uniform"]["shorts_color"],FM.teams[FM.team1]["goalkeeper uniform"]["shirt_color"],FM.teams[FM.team1]["goalkeeper uniform"]["shorts_sides_color"],FM.teams[FM.team1]["goalkeeper uniform"]["shirt_sleeves_color"],FM.teams[FM.team1]["goalkeeper uniform"]["shirt_sides_color"],FM.teams[FM.team1]["goalkeeper uniform"]["shirt_vstripes_color"],FM.teams[FM.team1]["goalkeeper uniform"]["shirt_hstripes_color"],0)
 		if (!isemptylist(FM.player_count_red))
 			FR.player_number = pick(FM.player_count_red)
+			FM.player_count_red -= FR.player_number
+			if (isemptylist(FM.player_count_red))
+				FM.player_count_red = FM.player_count_red_init.Copy()
 			FR.update_icon()
 	..()
 	return TRUE
@@ -287,6 +310,9 @@
 		FB.assign_style(FM.teams[FM.team2][1],FM.teams[FM.team2][FM.team2_kit]["shorts_color"],FM.teams[FM.team2][FM.team2_kit]["shirt_color"],FM.teams[FM.team2][FM.team2_kit]["shorts_sides_color"],FM.teams[FM.team2][FM.team2_kit]["shirt_sleeves_color"],FM.teams[FM.team2][FM.team2_kit]["shirt_sides_color"],FM.teams[FM.team2][FM.team2_kit]["shirt_vstripes_color"],FM.teams[FM.team2][FM.team2_kit]["shirt_hstripes_color"],0)
 		if (!isemptylist(FM.player_count_blue))
 			FB.player_number = pick(FM.player_count_blue)
+			FM.player_count_blue -= FB.player_number
+			if (isemptylist(FM.player_count_blue))
+				FM.player_count_blue = FM.player_count_blue_init.Copy()
 			FB.update_icon()
 
 	..()
@@ -318,6 +344,9 @@
 		FB.assign_style(FM.teams[FM.team2][1],FM.teams[FM.team2]["goalkeeper uniform"]["shorts_color"],FM.teams[FM.team2]["goalkeeper uniform"]["shirt_color"],FM.teams[FM.team2]["goalkeeper uniform"]["shorts_sides_color"],FM.teams[FM.team2]["goalkeeper uniform"]["shirt_sleeves_color"],FM.teams[FM.team2]["goalkeeper uniform"]["shirt_sides_color"],FM.teams[FM.team2]["goalkeeper uniform"]["shirt_vstripes_color"],FM.teams[FM.team2]["goalkeeper uniform"]["shirt_hstripes_color"],0)
 		if (!isemptylist(FM.player_count_blue))
 			FB.player_number = pick(FM.player_count_blue)
+			FM.player_count_blue -= FB.player_number
+			if (isemptylist(FM.player_count_blue))
+				FM.player_count_blue = FM.player_count_blue_init.Copy()
 			FB.update_icon()
 
 	..()

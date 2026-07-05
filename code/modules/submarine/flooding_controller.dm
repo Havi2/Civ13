@@ -6,6 +6,12 @@
 
 var/global/datum/flooding_controller/subcom_flooding
 
+// Registered in New() so the per-second tick never has to scan the world.
+// Bulkheads are turfs: ChangeTurf() retypes them in place with no Destroy(),
+// so stale entries are pruned from the list when their type no longer matches.
+var/global/list/sub_bulkheads = list()
+var/global/list/sub_blast_doors = list()
+
 /datum/flooding_controller
 	// All tracked deck turfs, indexed by compartment_id
 	var/list/tracked_turfs = list()      // list of all /turf/floor/sub_deck
@@ -79,8 +85,11 @@ var/global/datum/flooding_controller/subcom_flooding
 
 	// Bulkhead integrity check: if a bulkhead adjacent to a breached area is damaged,
 	// propagate water through it
-	for(var/turf/wall/sub_bulkhead/B in world)
-		if(QDELETED(B)) continue
+	for(var/B_ref in sub_bulkheads.Copy())
+		var/turf/wall/sub_bulkhead/B = B_ref
+		if(!istype(B) || QDELETED(B))
+			sub_bulkheads -= B_ref
+			continue
 		if(!B.watertight && B.health > 0)
 			// This bulkhead was destroyed - check if adjacent deck turfs have water
 			for(var/direction in list(NORTH, SOUTH, EAST, WEST))
@@ -93,8 +102,10 @@ var/global/datum/flooding_controller/subcom_flooding
 						other_side.add_water(flow)
 
 	// Open blast door check: propagate water through open doors between compartments
-	for(var/obj/structure/simple_door/blast/D in world)
-		if(QDELETED(D)) continue
+	for(var/obj/structure/simple_door/blast/D in sub_blast_doors.Copy())
+		if(QDELETED(D))
+			sub_blast_doors -= D
+			continue
 		if(!D.state) continue  // Door is closed
 		// Door is open - check both sides for water
 		for(var/direction in list(NORTH, SOUTH, EAST, WEST))
