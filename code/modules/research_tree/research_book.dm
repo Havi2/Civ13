@@ -20,7 +20,9 @@
 	var/transfer_type = "book"    // "book" (completes) or "notes" (tick boost)
 
 /obj/item/weapon/book/research/tree_book/attack_self(mob/user as mob)
+	to_chat(user, SPAN_NOTICE("This can only be studied at a research bench assigned to its subject."))
 	return
 
 /obj/item/weapon/book/research/tree_book/attackby(obj/item/W as obj, mob/user as mob)
+	to_chat(user, SPAN_NOTICE("This can only be studied at a research bench assigned to its subject."))
 	return

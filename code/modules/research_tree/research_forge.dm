@@ -27,6 +27,7 @@
 		to_chat(user, SPAN_WARNING("You must belong to a faction to use a resource forge."))
 		return
 	if (!map)
+		to_chat(user, SPAN_WARNING("This resource forge isn't linked to any research infrastructure."))
 		return
 	// Only the three metal coin types (and their subtypes) -- NOT the money
 	// base, which also covers rubles/francs/euros/pounds/etc.
@@ -34,17 +35,26 @@
 		to_chat(user, SPAN_WARNING("The resource forge only accepts copper, silver or gold coins."))
 		return
 	var/obj/item/stack/money/coins = W
-	var/count = coins.amount
+	// Let the player choose how much to melt: consuming the whole stack on a
+	// single click turns a misclick with a full purse into forge confetti.
+	var/count = input(user, "How many coins do you want to melt down? (You are holding [coins.amount])", "Resource Forge", coins.amount) as num|null
+	if (!count || count <= 0)
+		return
+	// Re-validate after the input pause: the stack may have been spent,
+	// dropped or deleted while the dialog was open.
+	if (QDELETED(coins) || !in_range(src, user))
+		return
+	count = min(round(count), coins.amount)
+	if (count <= 0)
+		return
 	var/coinname = coins.name
 	// Silver-equivalent: coin.value is already 0.1 (copper) / 1 (silver) / 4
-	// (gold), so value * amount is the silver-denominated contribution.
+	// (gold), so value * count is the silver-denominated contribution.
 	var/silver_equiv = coins.value * count
-	qdel(W)
+	coins.use(count)
 	// Accumulates cumulatively; a slot costing more than one full 500-coin
 	// stack is paid off over several feedings, overshoot rolling forward.
 	if (map.add_forge_value(user.civilization, silver_equiv))
 		to_chat(user, SPAN_NOTICE("You melt down [count] [coinname] ([silver_equiv] in silver). Your faction's research bench limit has increased to [map.get_bench_cap(user.civilization)]!"))
 	else
-		var/bonus = map.faction_bench_cap_bonus[user.civilization]
-		var/progress = map.faction_forge_progress[user.civilization]
-		to_chat(user, SPAN_NOTICE("You melt down [count] [coinname] ([silver_equiv] in silver). Bench cap upgrade progress: [round(progress, 0.1)]/[FORGE_CAP_UPGRADE_COST(bonus ? bonus : 0)] silver."))
+		to_chat(user, SPAN_NOTICE("You melt down [count] [coinname] ([silver_equiv] in silver). Bench cap upgrade progress: [round(map.get_forge_progress(user.civilization), 0.1)]/[map.get_forge_next_cost(user.civilization)] silver."))

@@ -146,7 +146,11 @@
 	var/list/entry = ensure_node_entry(faction, node_id)
 	entry[RNODE_ENTRY_STATUS] = RNODE_DONE
 	entry[RNODE_ENTRY_TICKS] = N.cost_ticks
-	to_chat(world, "<big>The <b>[faction]</b> have researched <b>[N.name]</b>!</big>")
+	// Announce to the researching faction only: world-wide shouts for every
+	// node x every faction would be hundreds of lines of noise per round.
+	for (var/mob/living/human/M in human_mob_list)
+		if (M.client && M.civilization == faction)
+			to_chat(M, "<big>Your faction has researched <b>[N.name]</b>!</big>")
 	return TRUE
 
 // ------------------------------------------------------------
@@ -166,6 +170,16 @@
 		if (B.faction == faction)
 			count++
 	return count
+
+// Read-side accessors so callers never poke the assoc lists directly
+// (mirrors get_bench_cap; keeps the faction-state representation private).
+/obj/map_metadata/proc/get_forge_progress(faction)
+	var/progress = faction_forge_progress[faction]
+	return progress ? progress : 0
+
+/obj/map_metadata/proc/get_forge_next_cost(faction)
+	var/bonus = faction_bench_cap_bonus[faction]
+	return FORGE_CAP_UPGRADE_COST(bonus ? bonus : 0)
 
 // Feeds silver coins into a faction's forge progress; grants a permanent
 // +1 bench cap slot each time the escalating threshold is crossed. Progress
