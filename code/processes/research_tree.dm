@@ -8,7 +8,7 @@
 
 /process/research_tree/setup()
 	name = "research tree process"
-	schedule_interval = 2 SECONDS
+	schedule_interval = 10 SECONDS
 	fires_at_gamestates = list(GAME_STATE_PLAYING)
 	priority = PROCESS_PRIORITY_LOW
 	processes.research_tree = src

@@ -51,9 +51,14 @@ var/global/list/research_benches = list()
 	var/datum/research_node/N = get_research_node(assigned_node)
 	if (!N)
 		return
-	// Only passive-analysis nodes fill from bench ticks; BOOK/PROTOTYPE
-	// nodes are completed through their own paths (later phases).
-	if (N.mode != RESEARCH_MODE_ANALYSIS)
+	// PROTOTYPE nodes still accumulate passive ticks like ANALYSIS ones --
+	// submitting the matching prototype is a faster shortcut to completion,
+	// not the only path, and this keeps notes/books written on prototype
+	// techs meaningful trade goods (see attackby()'s notes/book handling).
+	// BOOK-mode nodes are the one mode that stays tick-free by design: they
+	// represent knowledge that can only be imported, never independently
+	// discovered by a bench (no node currently uses this mode).
+	if (N.mode == RESEARCH_MODE_BOOK)
 		return
 	if (tier < N.min_bench_tier)
 		return
@@ -253,17 +258,18 @@ var/global/list/research_benches = list()
 			var/done = map && map.is_node_done(faction, assigned_node)
 			data["assigned_done"] = done
 			data["can_write_book"] = done && can_manage
-			// Notes only make sense for tick-based (analysis) subjects.
-			data["can_write_notes"] = done && can_manage && AN.mode == RESEARCH_MODE_ANALYSIS
+			// Notes make sense for any tick-accumulating subject -- which is
+			// every mode except BOOK (PROTOTYPE nodes tick passively too now).
+			data["can_write_notes"] = done && can_manage && AN.mode != RESEARCH_MODE_BOOK
 			if (!done)
+				var/list/entry = map ? map.get_node_entry(faction, assigned_node) : null
+				var/ticks = entry ? entry[RNODE_ENTRY_TICKS] : 0
 				switch (AN.mode)
 					if (RESEARCH_MODE_PROTOTYPE)
-						data["assigned_status_text"] = "Requires a working prototype to complete."
+						data["assigned_status_text"] = "Requires a working prototype to complete (or passive study: [round((ticks / AN.cost_ticks) * 100)]% ([ticks]/[AN.cost_ticks]))."
 					if (RESEARCH_MODE_BOOK)
 						data["assigned_status_text"] = "Can only be learned from another faction's research book."
 					else
-						var/list/entry = map ? map.get_node_entry(faction, assigned_node) : null
-						var/ticks = entry ? entry[RNODE_ENTRY_TICKS] : 0
 						data["assigned_status_text"] = "Passive study: [round((ticks / AN.cost_ticks) * 100)]% ([ticks]/[AN.cost_ticks])."
 
 	var/list/layers = list()
@@ -437,9 +443,10 @@ var/global/list/research_benches = list()
 				to_chat(user, SPAN_NOTICE("You study the book. The [faction] now understand <b>[N.name]</b>!"))
 				qdel(W)
 			return
-		// Notes: grant a boost of analysis ticks. Only meaningful for tick-based
-		// (analysis) nodes -- prototype/book-only nodes aren't advanced by ticks.
-		if (N.mode != RESEARCH_MODE_ANALYSIS)
+		// Notes: grant a boost of ticks. Meaningful for any tick-accumulating
+		// node -- ANALYSIS and PROTOTYPE both progress this way now; BOOK-only
+		// nodes are the sole mode that never ticks.
+		if (N.mode == RESEARCH_MODE_BOOK)
 			to_chat(user, SPAN_WARNING("Notes only speed up ongoing study; <b>[N.name]</b> can't be advanced that way."))
 			return
 		var/boost = max(1, round(N.cost_ticks * RESEARCH_NOTE_BOOST_FRACTION))
@@ -504,12 +511,11 @@ var/global/list/research_benches = list()
 		if (map.is_node_done(faction, assigned_node))
 			to_chat(user, "This subject has already been completed.")
 			return
-		switch (N.mode)
-			if (RESEARCH_MODE_PROTOTYPE)
-				to_chat(user, "This requires a working prototype to complete, not passive study.")
-			if (RESEARCH_MODE_BOOK)
-				to_chat(user, "This can only be learned from another faction's research book.")
-			else
-				var/list/entry = map.get_node_entry(faction, assigned_node)
-				var/ticks = entry ? entry[RNODE_ENTRY_TICKS] : 0
-				to_chat(user, "Progress: [round((ticks / N.cost_ticks) * 100)]% ([ticks]/[N.cost_ticks]).")
+		if (N.mode == RESEARCH_MODE_BOOK)
+			to_chat(user, "This can only be learned from another faction's research book.")
+		else
+			var/list/entry = map.get_node_entry(faction, assigned_node)
+			var/ticks = entry ? entry[RNODE_ENTRY_TICKS] : 0
+			to_chat(user, "Progress: [round((ticks / N.cost_ticks) * 100)]% ([ticks]/[N.cost_ticks]).")
+			if (N.mode == RESEARCH_MODE_PROTOTYPE)
+				to_chat(user, "A working prototype would also complete this outright.")
