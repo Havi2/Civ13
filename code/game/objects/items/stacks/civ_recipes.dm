@@ -106,7 +106,10 @@
 		// Era gating (i[12]) applies in both cases.
 		var/node_req = get_recipe_node_req(i[3])
 		var/research_allowed
-		if (node_req && research_faction && map)
+		// is_node_done handles a null/"none" faction fine (baseline-era grants
+		// don't depend on faction), so factionless players get their era's
+		// baseline nodes here instead of falling back to legacy thresholds.
+		if (node_req && map)
 			research_allowed = map.is_node_done(research_faction, node_req)
 		else
 			research_allowed = (current_res[1]>=text2num(i[9]) && current_res[2]>=text2num(i[10]) && current_res[3]>=text2num(i[11]))

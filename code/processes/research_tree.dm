@@ -14,7 +14,9 @@
 	processes.research_tree = src
 
 /process/research_tree/fire()
-	for (current in research_benches)
+	// Iterate a copy: we prune deleted benches from the live list mid-loop,
+	// and mutating a list while iterating it skips elements in DM.
+	for (current in research_benches.Copy())
 		var/obj/structure/research_bench/B = current
 		if (QDELETED(B))
 			research_benches -= B

@@ -523,7 +523,7 @@
 		customdesc = input("What description to add to the statue?", "Statue", "A [recipe.use_material] statue.") as text
 
 	else if (recipe.result_type == /obj/structure/research_bench)
-		if (!H.civilization || H.civilization == "none")
+		if (!H || !H.civilization || H.civilization == "none")
 			to_chat(user, "Only members of a faction can build a research bench.")
 			return
 		if (map && map.count_faction_benches(H.civilization) >= map.get_bench_cap(H.civilization))

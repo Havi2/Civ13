@@ -34,6 +34,7 @@ var/global/list/research_benches = list()
 	var/faction = null         // owning faction, set on assignment (persists)
 	var/base_tick_rate = 1     // analysis ticks contributed per process fire
 	var/tier_progress = 0      // value fed toward the next tier (persists)
+	var/tmp/writing = FALSE    // transcription in progress (tmp: never persists)
 
 /obj/structure/research_bench/New()
 	..()
@@ -134,6 +135,8 @@ var/global/list/research_benches = list()
 	return choice
 
 /obj/structure/research_bench/proc/appoint_director(mob/living/human/H)
+	if (!map)
+		return
 	if (!map.is_faction_leader(H, faction))
 		return
 	var/mob/living/human/target = pick_faction_member(H, "Who will be your faction's Research Director?")
@@ -148,6 +151,8 @@ var/global/list/research_benches = list()
 	to_chat(H, SPAN_NOTICE("[target] is now your [newtitle]."))
 
 /obj/structure/research_bench/proc/dismiss_director(mob/living/human/H)
+	if (!map)
+		return
 	if (!map.is_faction_leader(H, faction))
 		return
 	var/mob/living/human/D = map.faction_research_director[faction]
@@ -157,6 +162,8 @@ var/global/list/research_benches = list()
 	to_chat(H, SPAN_NOTICE("You dismiss your faction's [map.get_director_title(faction)]."))
 
 /obj/structure/research_bench/proc/set_director_title(mob/living/human/H)
+	if (!map)
+		return
 	if (!map.is_faction_leader(H, faction))
 		return
 	var/newtitle = WWinput(H, "New title for your Research Director role:", "Research Director", map.get_director_title(faction))
@@ -166,6 +173,8 @@ var/global/list/research_benches = list()
 	to_chat(H, SPAN_NOTICE("The role is now titled [newtitle]."))
 
 /obj/structure/research_bench/proc/appoint_researcher(mob/living/human/H)
+	if (!map)
+		return
 	if (!map.is_faction_leader(H, faction) && !map.is_research_director(H, faction))
 		return
 	var/mob/living/human/target = pick_faction_member(H, "Who will you appoint as a Researcher?")
@@ -176,6 +185,8 @@ var/global/list/research_benches = list()
 	to_chat(H, SPAN_NOTICE("[target] is now a Researcher."))
 
 /obj/structure/research_bench/proc/dismiss_researcher(mob/living/human/H)
+	if (!map)
+		return
 	if (!map.is_faction_leader(H, faction) && !map.is_research_director(H, faction))
 		return
 	var/mob/living/human/target = pick_faction_member(H, "Dismiss which Researcher?", require_researcher = TRUE)
@@ -318,6 +329,8 @@ var/global/list/research_benches = list()
 	if (!istype(usr, /mob/living/human))
 		return
 	var/mob/living/human/H = usr
+	if (H.stat) // no acting on the bench while dead or unconscious
+		return
 	if (!H.civilization || H.civilization == "none")
 		return
 	if (!(in_range(src, usr) && istype(loc, /turf)) && !usr.contents.Find(src))
@@ -352,15 +365,24 @@ var/global/list/research_benches = list()
 	var/datum/research_node/N = get_research_node(assigned_node)
 	if (!N)
 		return
+	// One transcription at a time: without this, spam-clicking (or two users
+	// clicking in parallel) starts overlapping do_after loops that each
+	// produce a book/note, bypassing the writing time as a limiter.
+	if (writing)
+		to_chat(H, SPAN_WARNING("This bench is already busy transcribing research."))
+		return
 	if (!map || !map.is_node_done(faction, assigned_node))
 		to_chat(H, SPAN_WARNING("You can only document research your faction has completed."))
 		return
 	var/wtime = is_book ? RESEARCH_BOOK_WRITE_TIME : RESEARCH_NOTES_WRITE_TIME
 	to_chat(H, SPAN_NOTICE("You begin [is_book ? "transcribing a full research book" : "jotting down research notes"] on [N.name]..."))
+	writing = TRUE
 	if (!do_after(H, wtime, src))
+		writing = FALSE
 		return
+	writing = FALSE
 	// Re-check ownership/permission after the wait, in case the bench changed hands.
-	if (!map.can_manage_faction_research(H, faction) || !map.is_node_done(faction, assigned_node))
+	if (!map || !map.can_manage_faction_research(H, faction) || !map.is_node_done(faction, assigned_node))
 		return
 	var/obj/item/weapon/book/research/tree_book/book = new(get_turf(H))
 	book.subject = assigned_node
@@ -451,7 +473,7 @@ var/global/list/research_benches = list()
 	if (tier >= MAX_BENCH_TIER)
 		to_chat(user, SPAN_WARNING("This bench is already at maximum tier."))
 		return
-	var/value = W.value
+	var/value = W.value || 0 // null-safe: some items never initialise value
 	if (istype(W, /obj/item/stack))
 		var/obj/item/stack/S = W
 		value *= S.amount

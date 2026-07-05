@@ -1511,9 +1511,10 @@ var/global/list/recipe_node_requirements = list()
 		"/obj/structure/window_frame/sandstonefull" = "stone_masonry",
 		"/obj/structure/window_frame/stone" = "stone_masonry",
 		"/obj/structure/window_frame/stonefull" = "stone_masonry",
-		"obj/covers/roads/modern" = "paved_infrastructure",
-		"obj/item/weapon/gun/projectile/ancient/tanegashima" = "gunpowder",
-		"obj/structure/altar/material/bamboo" = "pottery_storage",
+		// (roads/modern and tanegashima appeared here twice, once without the
+		// leading slash the recipe loader actually produces -- the slashless
+		// duplicates are removed; bamboo altar kept, now correctly slashed.)
+		"/obj/structure/altar/material/bamboo" = "pottery_storage",
 		// Phase 3: the resource forge is gated on Workshops -- raising a
 		// faction's bench cap is itself downstream of early industry.
 		"/obj/structure/research_forge" = "workshops"
