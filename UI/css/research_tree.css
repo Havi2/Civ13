@@ -1,7 +1,42 @@
 /* Research tree - parchment-over-wood theme (Phase 4 visual pass) */
 
+@font-face {
+	font-family: 'Civ13Custom';
+	src: url('Alegreya-Regular.ttf') format('truetype');
+	font-weight: normal;
+	font-style: normal;
+}
+
+@font-face {
+	font-family: 'Civ13Custom';
+	src: url('Alegreya-Bold.ttf') format('truetype');
+	font-weight: bold;
+	font-style: normal;
+}
+
+@font-face {
+	font-family: 'Civ13Custom';
+	src: url('Alegreya-Italic.ttf') format('truetype');
+	font-weight: normal;
+	font-style: italic;
+}
+
+@font-face {
+	font-family: 'Civ13Custom';
+	src: url('Alegreya-BoldItalic.ttf') format('truetype');
+	font-weight: bold;
+	font-style: italic;
+}
+
+@font-face {
+	font-family: 'Civ13Custom';
+	src: url('Alegreya-Black.ttf') format('truetype');
+	font-weight: 900;
+	font-style: normal;
+}
+
 #rt-root {
-	font-family: Verdana, Geneva, sans-serif;
+	font-family: 'Civ13Custom', Georgia, serif;
 	color: #3a2c1a;
 	padding: 14px;
 	background:
@@ -23,8 +58,8 @@
 }
 
 #rt-root h2 {
-	font-family: Georgia, "Palatino Linotype", serif;
-	font-weight: normal;
+	font-family: 'Civ13Custom', Georgia, serif;
+	font-weight: bold;
 	font-size: 16px;
 	color: #4a3418;
 	border-bottom: 1px solid #a98c5c;
@@ -69,7 +104,8 @@
 }
 
 .rt-layer-title {
-	font-family: Georgia, "Palatino Linotype", serif;
+	font-family: 'Civ13Custom', Georgia, serif;
+	font-weight: bold;
 	font-size: 14px;
 	color: #4a3418;
 	margin: 0 0 6px;
@@ -135,6 +171,7 @@
 .rt-node-sub {
 	color: #6b5230;
 	font-size: 10px;
+	font-style: italic;
 }
 
 .rt-node-bar {
@@ -155,7 +192,7 @@
 /* --- assign / staff links (reuse the framework's linkActive markup) --- */
 
 #rt-root .link, #rt-root .linkActive, #rt-modal .link, #rt-modal .linkActive {
-	font-family: Verdana, Geneva, sans-serif;
+	font-family: 'Civ13Custom', Georgia, serif;
 	background: #e9dcb8;
 	border: 1px solid #a98c5c;
 	color: #3a2c1a;
@@ -201,7 +238,7 @@
 	max-width: 86%;
 	padding: 14px 16px;
 	font-size: 12px;
-	font-family: Verdana, Geneva, sans-serif;
+	font-family: 'Civ13Custom', Georgia, serif;
 	/* The modal lives outside #rt-root in the DOM (it's a sibling shell, not
 	   a descendant), so it never inherits the parchment root's dark ink
 	   color -- without this it falls back to the base NanoUI theme's white
@@ -221,8 +258,9 @@
 }
 
 .rt-modal-title {
-	font-family: Georgia, "Palatino Linotype", serif;
-	font-size: 16px;
+	font-family: 'Civ13Custom', Georgia, serif;
+	font-weight: 900;
+	font-size: 17px;
 	color: #2f2211;
 	margin: 0 0 2px;
 }
@@ -230,6 +268,7 @@
 .rt-modal-sub {
 	color: #6b5230;
 	font-size: 11px;
+	font-style: italic;
 	margin-bottom: 10px;
 }
 
