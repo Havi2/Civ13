@@ -115,10 +115,11 @@
 	display: grid;
 	/* Fixed width, not 1fr/minmax -- the tree does not need to be squeezed to
 	   fit inside the window's fixed size. It's free to run wider than the
-	   viewport; the browser's own scrollbars handle the rest. 14 columns
-	   comfortably covers the deepest prereq chain in the current tree with
-	   room to grow. */
-	grid-template-columns: repeat(14, 130px);
+	   viewport; the browser's own scrollbars handle the rest. Columns are now
+	   era-blocks (see build_tree_grid_columns() in research_node.dm): each
+	   era's nodes plus one column per era-changing capstone in between. The
+	   current tree tops out at column 21; 26 leaves room to grow. */
+	grid-template-columns: repeat(26, 130px);
 	grid-auto-rows: min-content;
 	gap: 8px 10px;
 	position: relative;

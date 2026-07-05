@@ -48,34 +48,66 @@ var/global/list/recipe_names_by_node = null
 	var/list/result = recipe_names_by_node[node_id]
 	return result ? result : list()
 
-// Topological depth: 1 for a node with no prereqs, otherwise 1 + the deepest
-// of its prereqs' depths. Used for the tree UI's grid column instead of raw
-// era_tier, since several cross-branch prereqs share their dependent's era
-// (e.g. Steel Blades and its prereq Iron Smithing are both era 2) -- placing
-// both in an era-numbered column would put a prereq in the SAME column as
-// (or, worse, visually after) something that depends on it. Depth guarantees
-// every prereq lands in a strictly earlier column than its dependents,
-// regardless of what era either one belongs to.
-var/global/list/node_depth_cache = null
+// Grid column layout for the tree UI: one BLOCK of columns per era, in era
+// order, with each era-changing capstone (PROTOTYPE mode) given its own
+// single dedicated column sitting between the block it graduates FROM and
+// the block it starts. So: [era0 nodes...][capstone->era1][era1 nodes...]
+// [capstone->era2][era2 nodes...] and so on. Within an era's own block, a
+// node normally sits at the block's first column, UNLESS it depends on
+// ANOTHER regular (non-capstone) node of the SAME era -- e.g. Rifling (era4)
+// depends on Steelmaking (era4) -- in which case it shifts one column further
+// into the block per level of that same-era chain ("plus extras if
+// dependent"). Prereqs from earlier eras (or the block's own capstone, which
+// always sits immediately before it) never need to shift anything within the
+// block: they're already satisfied by an earlier column purely from block
+// ordering. Every capstone in the current tree has all of its own prereqs in
+// strictly earlier eras, so it can always take a single column safely.
+var/global/list/node_grid_col_cache = null
 
-/proc/get_node_depth(node_id, list/visiting = null)
-	if (!node_depth_cache)
-		node_depth_cache = list()
-	var/cached = node_depth_cache[node_id]
-	if (cached)
-		return cached
+/proc/get_node_grid_col(node_id)
+	if (!node_grid_col_cache)
+		build_tree_grid_columns()
+	var/col = node_grid_col_cache[node_id]
+	return col ? col : 1
+
+/proc/build_tree_grid_columns()
+	node_grid_col_cache = list()
+	var/col_cursor = 1
+	for (var/era = 0, era <= 8, era++)
+		// This era's regular (non-capstone) nodes.
+		var/list/regular_ids = list()
+		for (var/node_id in research_nodes)
+			var/datum/research_node/N = research_nodes[node_id]
+			if (N.era_tier == era && N.mode != RESEARCH_MODE_PROTOTYPE)
+				regular_ids += node_id
+		var/list/local_depth = list()
+		var/block_width = 0
+		for (var/node_id in regular_ids)
+			block_width = max(block_width, get_local_era_depth(node_id, regular_ids, local_depth))
+		for (var/node_id in regular_ids)
+			node_grid_col_cache[node_id] = col_cursor + local_depth[node_id] - 1
+		col_cursor += max(block_width, 1)
+		// The capstone that graduates era -> era+1 (if any) gets the next
+		// column, immediately after this era's block.
+		for (var/node_id in research_nodes)
+			var/datum/research_node/N = research_nodes[node_id]
+			if (N.mode == RESEARCH_MODE_PROTOTYPE && N.era_tier == era + 1)
+				node_grid_col_cache[node_id] = col_cursor
+				col_cursor++
+
+// Depth within a single era's block: 1 for a node with no SAME-ERA regular
+// prereq, otherwise 1 + the deepest such prereq's local depth. Prereqs
+// outside regular_ids (earlier eras, or this era's own capstone) don't count
+// -- they're already positioned before the block regardless.
+/proc/get_local_era_depth(node_id, list/regular_ids, list/memo)
+	if (memo[node_id])
+		return memo[node_id]
 	var/datum/research_node/N = get_research_node(node_id)
-	if (!N)
-		return 1
-	if (!visiting)
-		visiting = list()
-	if (visiting[node_id]) // guards against a malformed/cyclic prereq graph
-		return 1
-	visiting[node_id] = TRUE
 	var/depth = 1
 	for (var/req in N.prereqs)
-		depth = max(depth, get_node_depth(req, visiting) + 1)
-	node_depth_cache[node_id] = depth
+		if (req in regular_ids)
+			depth = max(depth, get_local_era_depth(req, regular_ids, memo) + 1)
+	memo[node_id] = depth
 	return depth
 
 /datum/research_node

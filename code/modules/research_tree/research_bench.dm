@@ -339,13 +339,11 @@ var/global/list/research_benches = list()
 			"id" = node_id,
 			"name" = N.name,
 			"era_tier" = N.era_tier,
-			// Grid column: topological depth, not raw era_tier. Several
-			// cross-branch prereqs share their dependent's era (e.g. Steel
-			// Blades and its prereq Iron Smithing are both era 2); depth
-			// guarantees a prereq always lands strictly before whatever
-			// depends on it, letting same-era co-dependent chains spread
-			// across columns/rows instead of overlapping in one column.
-			"grid_col" = get_node_depth(node_id),
+			// Grid column: one block of columns per era (in era order), with
+			// each era-changing capstone given its own column between the
+			// block it graduates from and the one it starts. See
+			// build_tree_grid_columns() in research_node.dm.
+			"grid_col" = get_node_grid_col(node_id),
 			"is_era_changing" = (N.mode == RESEARCH_MODE_PROTOTYPE),
 			"cost_ticks" = N.cost_ticks,
 			"min_bench_tier" = N.min_bench_tier,
