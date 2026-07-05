@@ -186,6 +186,7 @@ var/list/preferences_datums = list()
 		character.f_growth = facial_hair_styles_list[f_style].growth
 
 	character.traits = traits
+	character.traits_dirty = TRUE
 
 
 	//Debugging report to track down a bug, which randomly assigned the plural gender to people.

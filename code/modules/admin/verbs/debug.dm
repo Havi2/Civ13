@@ -53,4 +53,7 @@
 	if(!check_rights(R_DEBUG))
 		return
 
+	if(!istype(GLOB.error_cache))
+		to_chat(usr, "<span class='warning'>Custom error handler is disabled; no runtimes to view.</span>")
+		return
 	GLOB.error_cache.show_to(usr.client)
