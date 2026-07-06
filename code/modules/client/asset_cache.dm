@@ -186,7 +186,8 @@ You can set verify to TRUE if you want send() to sleep until the client has the 
 		"UI/css/",
 		"UI/images/",
 		"UI/images/status_icons/",
-		"UI/js/"
+		"UI/js/",
+		"UI/fonts/"
 	)
 	var/list/uncommon_dirs = list(
 		"UI/templates/"

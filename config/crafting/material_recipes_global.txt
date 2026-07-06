@@ -1608,6 +1608,7 @@ RECIPE: /material/steel/,shopping cart,/obj/structure/shopping_cart,30,190,1,1,l
 
 //MID BRONZE AGE//
 RECIPE: /material/steel/,coin smelter,/obj/structure/machinery/factory/coinsmelter,50,190,1,1,none,25,0,0,9,null
+RECIPE: /material/copper/,resource forge,/obj/structure/research_forge,40,240,1,1,economy & production,0,0,0,8,null
 //MID BRONZE AGE//
 
 //**************************************************************
@@ -1979,6 +1980,7 @@ RECIPE: /material/wood/soft/,ship mast,/obj/structure/vehicleparts/movement/sail
 //*********************| WOOD PRODUCTION & ECONOMY |**************************
 
 RECIPE: /material/wood/soft/,research desk,/obj/structure/researchdesk,8,250,1,1,economy & production,0,0,0,8,null
+RECIPE: /material/wood/soft/,research bench,/obj/structure/research_bench,8,250,1,1,economy & production,0,0,0,8,null
 RECIPE: /material/wood/,altar of chad,/obj/structure/researchdesk/chad,8,100,1,1,economy & production,0,0,0,8,null
 
 RECIPE: /material/wood/,tanning rack,/obj/structure/converter/tanning,8,80,1,1,economy & production,16,0,0,8,null

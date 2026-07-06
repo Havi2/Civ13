@@ -99,6 +99,11 @@
 												//ind						mil					med			leader money	symbol	main color	backcolor, sales tax, business tax
 		var/newnamev = list("[newname]" = list(map.default_research,map.default_research,map.default_research,H,0,choosesymbol,choosecolor1,choosecolor2,10,10))
 		map.custom_civs += newnamev
+		// Research tree: freeze this faction's main-tree baseline era at the
+		// moment they're founded (see is_node_done in research_faction.dm) --
+		// it must not keep growing later just because the world's era
+		// advances due to OTHER factions' achievements.
+		map.faction_baseline_era[newname] = map.ordinal_age
 		to_chat(usr, "<big>You are now the leader of the <b>[newname]</b> faction.</big>")
 		return
 	else
@@ -138,6 +143,10 @@
 		var/mob/living/human/L = civ_data[4]
 		if (L.real_name == real_name)
 			civ_data[4] = null
+	// Shed any research-tree appointment so it can't carry into a new faction.
+	if (map && map.faction_research_director[civilization] == src)
+		map.faction_research_director[civilization] = null
+	research_role = null
 	civilization = "none"
 	name = replacetext(real_name,"[title] ","")
 	title = ""
