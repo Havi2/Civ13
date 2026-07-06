@@ -22,6 +22,13 @@
 	var/list/faction_forge_progress = list()  // faction => value fed toward the next bonus slot
 	var/list/faction_research_director = list() // faction => the Research Director mob
 	var/list/faction_director_title = list()    // faction => the (leader-chosen) director title
+	// faction => ordinal_age at the moment the faction was founded. The
+	// main-tree era-baseline grant (is_node_done) is measured against THIS,
+	// not the live/current ordinal_age -- otherwise an established faction
+	// would instantly get every main-tree node up to a new era marked done
+	// the moment ANY other faction (or the legacy age-up system) advances
+	// the era, even though they never researched or unlocked any of it.
+	var/list/faction_baseline_era = list()
 
 // A faction "still exists" for reclaim purposes if at least one of its members
 // is currently alive. living_mob_list excludes the dead and new_players.
@@ -92,11 +99,29 @@
 	return entry
 
 /obj/map_metadata/proc/is_node_done(faction, node_id)
-	// Baseline: any node at or below the current era is granted to everyone
-	// (factions and factionless alike) without being explicitly researched.
 	var/datum/research_node/N = get_research_node(node_id)
-	if (N && N.era_tier <= ordinal_age)
-		return TRUE
+	if (N)
+		if (!faction || faction == "none")
+			// Factionless: no persistent identity to freeze a snapshot
+			// against, and no "someone else's achievement" unfairness to
+			// worry about -- always caught up to the current era.
+			if (N.era_tier <= ordinal_age)
+				return TRUE
+		else
+			// A real faction's baseline is frozen at whatever era existed
+			// when they were founded (set in create_faction_pr()). It must
+			// NOT keep growing later just because the era advances due to
+			// OTHER factions' achievements or the legacy age-up system --
+			// past that snapshot, they have to actually research it.
+			var/snapshot_era = faction_baseline_era[faction]
+			if (isnull(snapshot_era))
+				// Faction predates snapshot tracking (or was created outside
+				// create_faction_pr(), e.g. a map's fixed civs) -- grandfather
+				// it in at whatever era it is right now, freezing from here on.
+				snapshot_era = ordinal_age
+				faction_baseline_era[faction] = snapshot_era
+			if (N.era_tier <= snapshot_era)
+				return TRUE
 	var/list/entry = get_node_entry(faction, node_id)
 	return entry && entry[RNODE_ENTRY_STATUS] == RNODE_DONE
 
