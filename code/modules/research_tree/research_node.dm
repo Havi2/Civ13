@@ -48,6 +48,29 @@ var/global/list/recipe_names_by_node = null
 	var/list/result = recipe_names_by_node[node_id]
 	return result ? result : list()
 
+// Reverse index: node id => list of result TYPE PATHS it unlocks. Used to decide
+// whether a fed item is a valid "sample" for the node being researched (studying
+// an existing example of what the tech produces -- reverse-engineering). Built
+// straight from recipe_node_requirements (result path => node), text2path'd once
+// and cached.
+var/global/list/recipe_paths_by_node = null
+
+/proc/get_node_recipe_paths(node_id)
+	if (!recipe_paths_by_node)
+		recipe_paths_by_node = list()
+		for (var/path_string in recipe_node_requirements)
+			var/nid = recipe_node_requirements[path_string]
+			var/ptype = text2path(path_string)
+			if (!ptype)
+				continue
+			var/list/paths = recipe_paths_by_node[nid]
+			if (!paths)
+				paths = list()
+				recipe_paths_by_node[nid] = paths
+			paths += ptype
+	var/list/result = recipe_paths_by_node[node_id]
+	return result ? result : list()
+
 // Grid column layout for the tree UI: one BLOCK of columns per era, in era
 // order, with each era-changing capstone (PROTOTYPE mode) given its own
 // single dedicated column sitting between the block it graduates FROM and
@@ -72,28 +95,51 @@ var/global/list/node_grid_col_cache = null
 
 /proc/build_tree_grid_columns()
 	node_grid_col_cache = list()
-	var/col_cursor = 1
-	for (var/era = 0, era <= 8, era++)
-		// This era's regular (non-capstone) nodes.
-		var/list/regular_ids = list()
-		for (var/node_id in research_nodes)
-			var/datum/research_node/N = research_nodes[node_id]
-			if (N.era_tier == era && N.mode != RESEARCH_MODE_PROTOTYPE)
-				regular_ids += node_id
-		var/list/local_depth = list()
-		var/block_width = 0
-		for (var/node_id in regular_ids)
-			block_width = max(block_width, get_local_era_depth(node_id, regular_ids, local_depth))
-		for (var/node_id in regular_ids)
-			node_grid_col_cache[node_id] = col_cursor + local_depth[node_id] - 1
-		col_cursor += max(block_width, 1)
-		// The capstone that graduates era -> era+1 (if any) gets the next
-		// column, immediately after this era's block.
-		for (var/node_id in research_nodes)
-			var/datum/research_node/N = research_nodes[node_id]
-			if (N.mode == RESEARCH_MODE_PROTOTYPE && N.era_tier == era + 1)
-				node_grid_col_cache[node_id] = col_cursor
-				col_cursor++
+	// Each standalone tree (Main, Agriculture, ...) is laid out in its own grid
+	// and so gets its own column numbering, reset to 1 per tree. Discover the
+	// trees in registration order (Main first).
+	var/list/trees = list()
+	for (var/node_id in research_nodes)
+		var/datum/research_node/N = research_nodes[node_id]
+		if (!(N.tree in trees))
+			trees += N.tree
+	for (var/tree_name in trees)
+		var/col_cursor = 1
+		var/list/tree_node_ids = list()   // this tree's nodes, for the normalize pass
+		for (var/era = 0, era <= 8, era++)
+			// This tree's regular (non-capstone) nodes for this era.
+			var/list/regular_ids = list()
+			for (var/node_id in research_nodes)
+				var/datum/research_node/N = research_nodes[node_id]
+				if (N.tree == tree_name && N.era_tier == era && N.mode != RESEARCH_MODE_PROTOTYPE)
+					regular_ids += node_id
+			var/list/local_depth = list()
+			var/block_width = 0
+			for (var/node_id in regular_ids)
+				block_width = max(block_width, get_local_era_depth(node_id, regular_ids, local_depth))
+			for (var/node_id in regular_ids)
+				node_grid_col_cache[node_id] = col_cursor + local_depth[node_id] - 1
+				tree_node_ids += node_id
+			col_cursor += max(block_width, 1)
+			// The capstone that graduates era -> era+1 (if any) gets the next
+			// column, immediately after this era's block.
+			for (var/node_id in research_nodes)
+				var/datum/research_node/N = research_nodes[node_id]
+				if (N.tree == tree_name && N.mode == RESEARCH_MODE_PROTOTYPE && N.era_tier == era + 1)
+					node_grid_col_cache[node_id] = col_cursor
+					col_cursor++
+					tree_node_ids += node_id
+		// Normalize: a tree whose earliest node isn't era 0 (e.g. Agriculture
+		// starts at era 2) would otherwise render with empty leading columns.
+		// Shift the whole tree left so its leftmost node sits at column 1.
+		if (tree_node_ids.len)
+			var/min_col = 0
+			for (var/node_id in tree_node_ids)
+				if (!min_col || node_grid_col_cache[node_id] < min_col)
+					min_col = node_grid_col_cache[node_id]
+			if (min_col > 1)
+				for (var/node_id in tree_node_ids)
+					node_grid_col_cache[node_id] -= (min_col - 1)
 
 // Depth within a single era's block: 1 for a node with no SAME-ERA regular
 // prereq, otherwise 1 + the deepest such prereq's local depth. Prereqs
@@ -124,12 +170,17 @@ var/global/list/node_grid_col_cache = null
 	// nodes (era_tier > current era) actually need bench/book/prototype work.
 	var/era_tier = 0
 	var/mode = RESEARCH_MODE_ANALYSIS
+	// Which standalone tree/tab this node lives in for the bench UI. "Main" is
+	// the default; specialized trees (e.g. "Agriculture") render as their own
+	// switchable tab. Columns are laid out independently per tree.
+	var/tree = "Main"
 	var/list/unlocks = list()        // recipe ids / feature flags (wired in Phase 1)
 	// Alternate-completion payloads (used in later phases):
 	var/prototype_type = null        // PROTOTYPE mode: item type to build & consume
 	var/book_subject = null          // BOOK mode: matching research-book subject
+	var/tmp/prototype_name_cache = null // lazily-resolved display name of prototype_type
 
-/datum/research_node/New(_id, _name, _category, _cost_ticks = 100, _min_bench_tier = 0, _mode = RESEARCH_MODE_ANALYSIS, list/_prereqs = null, _era_tier = 0, _prototype_type = null)
+/datum/research_node/New(_id, _name, _category, _cost_ticks = 100, _min_bench_tier = 0, _mode = RESEARCH_MODE_ANALYSIS, list/_prereqs = null, _era_tier = 0, _prototype_type = null, _tree = "Main")
 	..()
 	id = _id
 	name = _name
@@ -139,8 +190,23 @@ var/global/list/node_grid_col_cache = null
 	mode = _mode
 	era_tier = _era_tier
 	prototype_type = _prototype_type
+	tree = _tree
 	if (_prereqs)
 		prereqs = _prereqs
+
+// Human-readable name of the item this PROTOTYPE node needs, so the UI can tell
+// the researcher what to build instead of leaving them guessing. Resolved once
+// by briefly instantiating the type in nullspace, then cached (only the handful
+// of prototype nodes ever hit this, once each).
+/datum/research_node/proc/prototype_display_name()
+	if (!prototype_type)
+		return null
+	if (isnull(prototype_name_cache))
+		var/atom/A = new prototype_type()
+		prototype_name_cache = A ? "[A.name]" : "[prototype_type]"
+		if (A)
+			qdel(A)
+	return prototype_name_cache
 
 // Registers a node, warning on duplicate ids so tree authoring mistakes surface.
 /proc/register_research_node(datum/research_node/N)
@@ -193,10 +259,17 @@ var/global/list/node_grid_col_cache = null
 	register_research_node(new /datum/research_node("digital_computing", "Digital Computing", "Industrial", 510, 7, RESEARCH_MODE_PROTOTYPE, list("automation","electricity"), 8, /obj/item/camera/coldwar))
 	// --- Industrial: Textiles ---
 	register_research_node(new /datum/research_node("weaving", "Weaving", "Industrial", 60, 0, RESEARCH_MODE_ANALYSIS, null, 0))
-	register_research_node(new /datum/research_node("tailoring", "Tailoring", "Industrial", 95, 0, RESEARCH_MODE_ANALYSIS, list("weaving"), 1))
-	register_research_node(new /datum/research_node("fine_garments", "Fine Garments", "Industrial", 165, 2, RESEARCH_MODE_ANALYSIS, list("tailoring"), 3))
-	register_research_node(new /datum/research_node("textile_mills", "Textile Mills", "Industrial", 200, 3, RESEARCH_MODE_ANALYSIS, list("fine_garments","steam_power"), 4))
-	register_research_node(new /datum/research_node("synthetics", "Synthetic Fabrics", "Industrial", 305, 6, RESEARCH_MODE_ANALYSIS, list("textile_mills"), 7))
+	// Weaving (basic) stays on the Main tree as the textiles gateway. The
+	// advanced tailoring nodes below move to the standalone "Tailoring"
+	// specialized tree (grouped under the "Textiles" layer there), reachable
+	// once Weaving is done. Their recipe mappings are unchanged -- recipes
+	// gated on these nodes simply now live under the Tailoring tab.
+	// PLACEHOLDER: era/cost/prereq spread carried over from the old Textiles
+	// line; a proper Tailoring-tree rework comes later.
+	register_research_node(new /datum/research_node("tailoring", "Tailoring", "Textiles", 95, 0, RESEARCH_MODE_ANALYSIS, list("weaving"), 1, null, "Tailoring"))
+	register_research_node(new /datum/research_node("fine_garments", "Fine Garments", "Textiles", 165, 2, RESEARCH_MODE_ANALYSIS, list("tailoring"), 3, null, "Tailoring"))
+	register_research_node(new /datum/research_node("textile_mills", "Textile Mills", "Textiles", 200, 3, RESEARCH_MODE_ANALYSIS, list("fine_garments","steam_power"), 4, null, "Tailoring"))
+	register_research_node(new /datum/research_node("synthetics", "Synthetic Fabrics", "Textiles", 305, 6, RESEARCH_MODE_ANALYSIS, list("textile_mills"), 7, null, "Tailoring"))
 	// --- Industrial: Furniture ---
 	register_research_node(new /datum/research_node("basic_furniture", "Basic Furniture", "Industrial", 60, 0, RESEARCH_MODE_ANALYSIS, null, 0))
 	register_research_node(new /datum/research_node("fine_furniture", "Fine Furniture", "Industrial", 130, 1, RESEARCH_MODE_ANALYSIS, list("basic_furniture"), 2))
@@ -224,6 +297,18 @@ var/global/list/node_grid_col_cache = null
 	register_research_node(new /datum/research_node("roads", "Roads", "Industrial", 95, 0, RESEARCH_MODE_ANALYSIS, null, 1))
 	register_research_node(new /datum/research_node("paved_infrastructure", "Paved Infrastructure", "Industrial", 165, 2, RESEARCH_MODE_ANALYSIS, list("roads"), 3))
 	register_research_node(new /datum/research_node("utilities", "Utilities", "Industrial", 235, 4, RESEARCH_MODE_ANALYSIS, list("paved_infrastructure","electricity"), 5))
+	// --- Industrial: Agriculture ---
+	// Basic Agriculture is the Bronze Age gateway for farming: it unlocks the
+	// basic farming tools (plough, trowel, pitchfork, shears, etc. -- moved here
+	// off Toolmaking/Production) AND is the prereq that opens the specialized
+	// Agriculture line (Irrigation -> Advanced Agriculture) below.
+	register_research_node(new /datum/research_node("basic_agriculture", "Basic Agriculture", "Industrial", 95, 0, RESEARCH_MODE_ANALYSIS, null, 1))
+	// The specialized Agriculture nodes live in their OWN standalone tree/tab
+	// ("Agriculture"), reachable once Basic Agriculture (in the Main tree) is done.
+	// Irrigation gates the "dig an irrigation channel" shovel action -- see
+	// /obj/item/weapon/material/shovel/attack_self() in code/modules/1713/tools.dm.
+	register_research_node(new /datum/research_node("irrigation", "Irrigation", "Agriculture", 165, 1, RESEARCH_MODE_ANALYSIS, list("basic_agriculture"), 2, null, "Agriculture"))
+	register_research_node(new /datum/research_node("advanced_agriculture", "Advanced Agriculture", "Agriculture", 235, 3, RESEARCH_MODE_ANALYSIS, list("irrigation"), 4, null, "Agriculture"))
 	// --- Military: Melee ---
 	register_research_node(new /datum/research_node("stone_arms", "Stone Arms", "Military", 60, 0, RESEARCH_MODE_ANALYSIS, null, 0))
 	register_research_node(new /datum/research_node("bronze_weapons", "Bronze Weapons", "Military", 95, 0, RESEARCH_MODE_ANALYSIS, list("stone_arms"), 1))
@@ -237,6 +322,10 @@ var/global/list/node_grid_col_cache = null
 	// direct prereq -- see the recipe_node_requirements fix below, this item
 	// was previously misclassified onto fine_garments).
 	register_research_node(new /datum/research_node("gunpowder", "Gunpowder", "Military", 248, 2, RESEARCH_MODE_PROTOTYPE, list("iron_smithing"), 3, /obj/item/weapon/reagent_containers/food/drinks/gunpowder))
+	// Gunsmithing: the craft of building and maintaining firearms. Also gates the
+	// "dig a trench" shovel action -- see /turf/floor/dirt/attackby() and
+	// /turf/floor/beach/sand/attackby() in code/modules/1713/trench.dm.
+	register_research_node(new /datum/research_node("gunsmithing", "Gunsmithing", "Military", 200, 2, RESEARCH_MODE_ANALYSIS, list("gunpowder"), 3))
 	register_research_node(new /datum/research_node("rifling", "Rifling", "Military", 200, 3, RESEARCH_MODE_ANALYSIS, list("gunpowder","steelmaking"), 4))
 	register_research_node(new /datum/research_node("cartridge_ammo", "Cartridge Ammunition", "Military", 235, 4, RESEARCH_MODE_ANALYSIS, list("rifling"), 5))
 	register_research_node(new /datum/research_node("bolt_action", "Bolt-Action", "Military", 270, 5, RESEARCH_MODE_ANALYSIS, list("cartridge_ammo"), 6))
@@ -250,11 +339,16 @@ var/global/list/node_grid_col_cache = null
 	register_research_node(new /datum/research_node("mechanized_war", "Mechanized Warfare", "Military", 405, 5, RESEARCH_MODE_PROTOTYPE, list("field_artillery","combustion","steelmaking"), 6, /obj/item/stack/ammopart/casing/tank))
 	register_research_node(new /datum/research_node("missiles", "Missiles", "Military", 305, 6, RESEARCH_MODE_ANALYSIS, list("mechanized_war","aviation_rocketry"), 7))
 	// --- Military: Armor ---
+	// Padded Armor (basic) stays on the Main tree as the armour gateway. The
+	// advanced armour nodes below move to the standalone "Tailoring" specialized
+	// tree (grouped under the "Armour" layer there), reachable once Padded Armor
+	// is done. Recipe mappings unchanged. PLACEHOLDER: spread carried over from
+	// the old Armor line; proper rework later.
 	register_research_node(new /datum/research_node("padded_armor", "Padded Armor", "Military", 60, 0, RESEARCH_MODE_ANALYSIS, null, 0))
-	register_research_node(new /datum/research_node("mail_plate", "Mail & Plate", "Military", 130, 1, RESEARCH_MODE_ANALYSIS, list("padded_armor"), 2))
-	register_research_node(new /datum/research_node("fortifications", "Fortifications", "Military", 165, 2, RESEARCH_MODE_ANALYSIS, list("mail_plate","imperial_architecture"), 3))
-	register_research_node(new /datum/research_node("trench_warfare", "Trench Warfare", "Military", 235, 4, RESEARCH_MODE_ANALYSIS, list("fortifications"), 5))
-	register_research_node(new /datum/research_node("modern_armor", "Modern Armor", "Military", 305, 6, RESEARCH_MODE_ANALYSIS, list("trench_warfare","alloys"), 7))
+	register_research_node(new /datum/research_node("mail_plate", "Mail & Plate", "Armour", 130, 1, RESEARCH_MODE_ANALYSIS, list("padded_armor"), 2, null, "Tailoring"))
+	register_research_node(new /datum/research_node("fortifications", "Fortifications", "Armour", 165, 2, RESEARCH_MODE_ANALYSIS, list("mail_plate","imperial_architecture"), 3, null, "Tailoring"))
+	register_research_node(new /datum/research_node("trench_warfare", "Trench Warfare", "Armour", 235, 4, RESEARCH_MODE_ANALYSIS, list("fortifications"), 5, null, "Tailoring"))
+	register_research_node(new /datum/research_node("modern_armor", "Modern Armor", "Armour", 305, 6, RESEARCH_MODE_ANALYSIS, list("trench_warfare","alloys"), 7, null, "Tailoring"))
 	// --- Health: Medicine ---
 	register_research_node(new /datum/research_node("herbalism", "Herbalism", "Health", 60, 0, RESEARCH_MODE_ANALYSIS, null, 0))
 	register_research_node(new /datum/research_node("apothecary", "Apothecary", "Health", 130, 1, RESEARCH_MODE_ANALYSIS, list("herbalism"), 2))
@@ -270,6 +364,15 @@ var/global/list/node_grid_col_cache = null
 	register_research_node(new /datum/research_node("sanitation", "Sanitation", "Health", 165, 2, RESEARCH_MODE_ANALYSIS, list("hygiene"), 3))
 	register_research_node(new /datum/research_node("germ_theory", "Germ Theory", "Health", 235, 4, RESEARCH_MODE_ANALYSIS, list("sanitation"), 5))
 	register_research_node(new /datum/research_node("public_health", "Public Health", "Health", 305, 6, RESEARCH_MODE_ANALYSIS, list("germ_theory"), 7))
+
+	// Era-changing capstones (the PROTOTYPE-mode nodes) advance the whole world's
+	// era on completion (see complete_node), so they should be a serious
+	// undertaking to reach by passive study -- their tick cost is 5x a normal
+	// node's. Building the matching prototype item still completes them instantly.
+	for (var/node_id in research_nodes)
+		var/datum/research_node/PN = research_nodes[node_id]
+		if (PN.mode == RESEARCH_MODE_PROTOTYPE)
+			PN.cost_ticks *= 5
 
 	// Phase 2: full catalogue mapping. Generated from config/crafting/
 	// material_recipes_*.txt (1325 unique result paths across all 9 faction
@@ -933,7 +1036,7 @@ var/global/list/node_grid_col_cache = null
 		"/obj/item/weapon/bedsheet/brown" = "basic_furniture",
 		"/obj/item/weapon/bedsheet/medical" = "herbalism",
 		"/obj/item/weapon/bedsheet/red" = "basic_furniture",
-		"/obj/item/weapon/berriesgatherer" = "basic_tools",
+		"/obj/item/weapon/berriesgatherer" = "basic_agriculture",
 		"/obj/item/weapon/book" = "printing_currency",
 		"/obj/item/weapon/book/holybook" = "printing_currency",
 		"/obj/item/weapon/book/language_book" = "printing_currency",
@@ -1050,7 +1153,7 @@ var/global/list/node_grid_col_cache = null
 		"/obj/item/weapon/material/pickaxe/jackhammer" = "bayonets",
 		"/obj/item/weapon/material/pickaxe/stone" = "stone_arms",
 		"/obj/item/weapon/material/pilum" = "stone_arms",
-		"/obj/item/weapon/material/pitchfork" = "pottery_storage",
+		"/obj/item/weapon/material/pitchfork" = "basic_agriculture",
 		"/obj/item/weapon/material/quarterstaff" = "pottery_storage",
 		"/obj/item/weapon/material/shovel/bone" = "basic_tools",
 		"/obj/item/weapon/material/shovel/trench" = "padded_armor",
@@ -1062,7 +1165,7 @@ var/global/list/node_grid_col_cache = null
 		"/obj/item/weapon/material/thrown/kunai_normal" = "bronze_weapons",
 		"/obj/item/weapon/material/thrown/star" = "bronze_weapons",
 		"/obj/item/weapon/material/thrown/tomahawk" = "stone_arms",
-		"/obj/item/weapon/material/trowel" = "pottery_storage",
+		"/obj/item/weapon/material/trowel" = "basic_agriculture",
 		"/obj/item/weapon/melee/classic_baton" = "bayonets",
 		"/obj/item/weapon/melee/classic_baton/club" = "stone_arms",
 		"/obj/item/weapon/melee/classic_baton/whip" = "bronze_weapons",
@@ -1071,8 +1174,8 @@ var/global/list/node_grid_col_cache = null
 		"/obj/item/weapon/paper/official" = "printing_currency",
 		"/obj/item/weapon/paper_bin/empty" = "printing_currency",
 		"/obj/item/weapon/pen" = "printing_currency",
-		"/obj/item/weapon/plough" = "basic_tools",
-		"/obj/item/weapon/plough/iron" = "basic_tools",
+		"/obj/item/weapon/plough" = "basic_agriculture",
+		"/obj/item/weapon/plough/iron" = "basic_agriculture",
 		"/obj/item/weapon/poster/faction/lead" = "printing_currency",
 		"/obj/item/weapon/poster/faction/mil1" = "printing_currency",
 		"/obj/item/weapon/poster/faction/mil2" = "printing_currency",
@@ -1140,7 +1243,7 @@ var/global/list/node_grid_col_cache = null
 		"/obj/item/weapon/roofbuilder/mayan" = "stone_masonry",
 		"/obj/item/weapon/roofbuilder/palm" = "stone_masonry",
 		"/obj/item/weapon/roofbuilder/sandstone" = "stone_masonry",
-		"/obj/item/weapon/shears" = "pottery_storage",
+		"/obj/item/weapon/shears" = "basic_agriculture",
 		"/obj/item/weapon/shield" = "padded_armor",
 		"/obj/item/weapon/shield/chimalli" = "padded_armor",
 		"/obj/item/weapon/shield/chitin" = "padded_armor",
@@ -1181,8 +1284,8 @@ var/global/list/node_grid_col_cache = null
 		"/obj/item/weapon/storage/foodbox/chippack" = "assembly_line",
 		"/obj/item/weapon/storage/ore_collector" = "bronze_working",
 		"/obj/item/weapon/storage/photo_album" = "printing_currency",
-		"/obj/item/weapon/storage/produce_basket" = "pottery_storage",
-		"/obj/item/weapon/storage/seed_collector" = "pottery_storage",
+		"/obj/item/weapon/storage/produce_basket" = "basic_agriculture",
+		"/obj/item/weapon/storage/seed_collector" = "basic_agriculture",
 		"/obj/item/weapon/storage/toolbox" = "printing_currency",
 		"/obj/item/weapon/storage/toolbox/blue" = "printing_currency",
 		"/obj/item/weapon/storage/toolbox/yellow" = "printing_currency",

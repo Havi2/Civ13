@@ -6,10 +6,23 @@
 // auto-update cycle, but this module-level state does not) so a click stays
 // open/highlighted through the next periodic refresh instead of snapping shut.
 var rtOpenNodeId = null;
+// Which tree tab is active, persisted across the framework's full re-renders
+// (same rationale as rtOpenNodeId) so switching tabs sticks through refreshes.
+var rtActiveTreeIdx = 0;
+
+// The currently-visible tree panel (falls back to the first one).
+function rtActivePanel() {
+	return document.querySelector('.rt-tree-panel[data-tree-idx="' + rtActiveTreeIdx + '"]')
+		|| document.querySelector('.rt-tree-panel');
+}
 
 function rtDrawLines() {
-	var wrap = document.getElementById('rt-tree-wrap');
-	var svg = document.getElementById('rt-lines');
+	var panel = rtActivePanel();
+	if (!panel) return;
+	// Only the active panel is displayed; measuring a display:none panel yields
+	// zeroed rects, so we always draw for the visible one.
+	var wrap = panel.querySelector('.rt-tree-wrap');
+	var svg = panel.querySelector('.rt-lines');
 	if (!wrap || !svg) return;
 
 	svg.innerHTML = '';
@@ -130,15 +143,30 @@ function rtCloseDetail() {
 	rtClearHighlights();
 }
 
-function rtBindNodes() {
-	var nodes = document.querySelectorAll('.rt-node[data-id]');
-	for (var i = 0; i < nodes.length; i++) {
-		(function (el) {
-			el.onclick = function () {
+// Node clicks use event DELEGATION (see rtInstallDelegation) rather than
+// per-node handlers: nodes in specialist tabs are inside display:none panels
+// when the UI first renders, and binding onclick to hidden elements doesn't
+// reliably stick in BYOND's embedded browser -- so those tabs' techs couldn't
+// be opened. A single delegated listener on a stable ancestor handles every
+// node in every tab regardless of visibility or DOM rebuilds.
+var rtDelegationInstalled = false;
+function rtInstallDelegation() {
+	if (rtDelegationInstalled) return;
+	rtDelegationInstalled = true;
+	document.addEventListener('click', function (e) {
+		var el = e.target;
+		while (el && el.nodeType === 1) {
+			if (el.classList && el.classList.contains('rt-node') && el.getAttribute('data-id')) {
 				rtOpenDetail(el.getAttribute('data-id'));
-			};
-		})(nodes[i]);
-	}
+				return;
+			}
+			el = el.parentNode;
+		}
+	});
+}
+
+function rtBindNodes() {
+	rtInstallDelegation();
 
 	var closeBtn = document.getElementById('rt-modal-close');
 	if (closeBtn) closeBtn.onclick = rtCloseDetail;
@@ -151,11 +179,42 @@ function rtBindNodes() {
 	}
 }
 
+// Show the tree panel at idx, hide the rest, sync the tab highlight, and
+// (re)draw the connector lines for the now-visible panel.
+function rtSwitchTree(idx) {
+	rtActiveTreeIdx = idx;
+	var panels = document.querySelectorAll('.rt-tree-panel');
+	for (var i = 0; i < panels.length; i++) {
+		var active = panels[i].getAttribute('data-tree-idx') == idx;
+		panels[i].className = 'rt-tree-panel' + (active ? ' rt-tree-panel-active' : '');
+	}
+	var tabs = document.querySelectorAll('.rt-tab');
+	for (var j = 0; j < tabs.length; j++) {
+		var tActive = tabs[j].getAttribute('data-tree-idx') == idx;
+		tabs[j].className = 'rt-tab' + (tActive ? ' rt-tab-active' : '');
+	}
+	rtDrawLines();
+}
+
+function rtBindTabs() {
+	var tabs = document.querySelectorAll('.rt-tab');
+	for (var i = 0; i < tabs.length; i++) {
+		(function (el) {
+			el.onclick = function () {
+				rtSwitchTree(parseInt(el.getAttribute('data-tree-idx'), 10));
+			};
+		})(tabs[i]);
+	}
+}
+
 function rtRefresh() {
+	rtBindTabs();
 	rtBindNodes();
 	// Layout needs a tick to settle (grid reflow) before measuring positions.
 	setTimeout(function () {
-		rtDrawLines();
+		// A fresh render marks tab 0 active in the markup; reassert whatever the
+		// user had selected (this also draws the lines for that panel).
+		rtSwitchTree(rtActiveTreeIdx);
 		// The periodic auto-update replaces this whole content block, which
 		// would otherwise silently snap the modal shut -- restore whatever
 		// was open (and its highlight) right after the fresh render lands.

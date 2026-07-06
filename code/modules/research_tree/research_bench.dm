@@ -34,7 +34,14 @@ var/global/list/research_benches = list()
 	var/faction = null         // owning faction, set on assignment (persists)
 	var/base_tick_rate = 1     // analysis ticks contributed per process fire
 	var/tier_progress = 0      // value fed toward the next tier (persists)
+	// Queue of node ids to auto-advance to as the current subject completes,
+	// stored as a ";"-delimited string so it persists via the map object saver
+	// like the other string vars (a list var wouldn't survive the save).
+	var/research_queue = ""
 	var/tmp/writing = FALSE    // transcription in progress (tmp: never persists)
+	// Item types already studied as samples toward the CURRENT assignment; each
+	// type only teaches something once. tmp: resets on reboot, no need to persist.
+	var/tmp/list/studied_samples = null
 
 /obj/structure/research_bench/New()
 	..()
@@ -46,7 +53,12 @@ var/global/list/research_benches = list()
 
 // Called by /process/research_tree once per analysis interval.
 /obj/structure/research_bench/proc/analysis_tick()
-	if (!assigned_node || !faction)
+	if (!faction || !map)
+		return
+	// If the current subject is finished (or empty), roll on to the next node
+	// in the queue before doing anything else this tick.
+	try_advance_queue()
+	if (!assigned_node)
 		return
 	var/datum/research_node/N = get_research_node(assigned_node)
 	if (!N)
@@ -62,11 +74,15 @@ var/global/list/research_benches = list()
 		return
 	if (tier < N.min_bench_tier)
 		return
-	if (!map)
-		return
 	if (map.is_node_done(faction, assigned_node))
 		return
 	if (!map.node_prereqs_met(faction, assigned_node))
+		return
+	// A faction can't research in absentia: passive study only happens while at
+	// least one of its research-authorised members (Leader / Research Director /
+	// Researcher) is actually connected. Stops the "queue everything then log off
+	// to drag the whole server forward" exploit.
+	if (!map.faction_has_active_researcher(faction))
 		return
 	map.add_research_ticks(faction, assigned_node, base_tick_rate)
 	// Push a refresh to anyone currently viewing this bench. There's no
@@ -105,8 +121,72 @@ var/global/list/research_benches = list()
 		to_chat(H, SPAN_WARNING("This bench can't research that right now."))
 		return
 	assigned_node = node_id
+	studied_samples = null // a new subject: samples studied for the old one no longer apply
 	var/datum/research_node/N = get_research_node(node_id)
 	to_chat(H, SPAN_NOTICE("The bench is now researching <b>[N.name]</b> for the [faction]."))
+
+// --- Research queue -------------------------------------------------------
+// A ";"-delimited node-id string (persists) that the bench auto-advances
+// through as subjects complete, so staff don't have to babysit every finish.
+
+/obj/structure/research_bench/proc/queue_list()
+	return research_queue ? splittext(research_queue, ";") : list()
+
+/obj/structure/research_bench/proc/set_queue(list/L)
+	research_queue = (L && L.len) ? jointext(L, ";") : ""
+
+// If the current subject is done (or there is none), pull the next still-valid
+// node off the queue and start it. Drops queued nodes that are already done;
+// waits on ones that aren't assignable yet (locked prereqs / tier) rather than
+// discarding them, so a researcher can queue ahead of prerequisites.
+/obj/structure/research_bench/proc/try_advance_queue()
+	if (!faction || !map)
+		return
+	if (assigned_node && !map.is_node_done(faction, assigned_node))
+		return
+	var/list/q = queue_list()
+	while (q.len)
+		var/next = q[1]
+		if (map.is_node_done(faction, next))
+			q.Cut(1, 2)
+			continue
+		if (!can_assign_node(next))
+			break
+		q.Cut(1, 2)
+		assigned_node = next
+		studied_samples = null
+		set_queue(q)
+		return
+	set_queue(q)
+
+/obj/structure/research_bench/proc/try_queue_node(mob/living/human/H, node_id)
+	if (!map || !map.can_manage_faction_research(H, faction))
+		to_chat(H, SPAN_WARNING("Only your faction's research staff may queue research here."))
+		return
+	var/datum/research_node/N = get_research_node(node_id)
+	if (!N)
+		return
+	if (map.is_node_done(faction, node_id))
+		to_chat(H, SPAN_WARNING("Your faction has already researched <b>[N.name]</b>."))
+		return
+	if (node_id == assigned_node)
+		to_chat(H, SPAN_WARNING("This bench is already researching <b>[N.name]</b>."))
+		return
+	var/list/q = queue_list()
+	if (node_id in q)
+		to_chat(H, SPAN_WARNING("<b>[N.name]</b> is already in this bench's queue."))
+		return
+	q += node_id
+	set_queue(q)
+	// If the bench is idle (nothing assigned, or current already done), start now.
+	try_advance_queue()
+	to_chat(H, SPAN_NOTICE("Queued <b>[N.name]</b> on this bench."))
+
+/obj/structure/research_bench/proc/clear_queue(mob/living/human/H)
+	if (!map || !map.can_manage_faction_research(H, faction))
+		return
+	set_queue(null)
+	to_chat(H, SPAN_NOTICE("Cleared this bench's research queue."))
 
 // Claiming an abandoned bench: only if its owning faction no longer has any
 // living members, and the claimer's faction is under its own bench cap.
@@ -219,8 +299,12 @@ var/global/list/research_benches = list()
 	var/list/data = list()
 	data["bench_tier"] = tier
 	data["max_tier"] = MAX_BENCH_TIER
+	// Upgrades are also capped at the current global era (see era_max_tier).
+	var/emax = era_max_tier()
+	data["era_max_tier"] = emax
+	data["era_capped"] = tier >= emax && tier < MAX_BENCH_TIER
 	data["tier_progress"] = tier_progress
-	data["tier_upgrade_cost"] = tier < MAX_BENCH_TIER ? BENCH_TIER_UPGRADE_COST(tier) : 0
+	data["tier_upgrade_cost"] = tier < emax ? BENCH_TIER_UPGRADE_COST(tier) : 0
 	data["bench_faction"] = faction
 
 	var/viewer_faction = H.civilization
@@ -263,32 +347,53 @@ var/global/list/research_benches = list()
 			data["assigned_name"] = AN.name
 			var/done = map && map.is_node_done(faction, assigned_node)
 			data["assigned_done"] = done
-			data["can_write_book"] = done && can_manage
-			// Notes make sense for any tick-accumulating subject -- which is
-			// every mode except BOOK (PROTOTYPE nodes tick passively too now).
-			data["can_write_notes"] = done && can_manage && AN.mode != RESEARCH_MODE_BOOK
+			// Writing notes/books is offered per-node from each completed node's
+			// detail popup (see the per-node can_write_* flags below), not from
+			// this "currently researching" panel -- so a faction can document ANY
+			// tech it has finished, not just whatever a bench is parked on.
 			if (!done)
 				var/list/entry = map ? map.get_node_entry(faction, assigned_node) : null
 				var/ticks = entry ? entry[RNODE_ENTRY_TICKS] : 0
 				switch (AN.mode)
 					if (RESEARCH_MODE_PROTOTYPE)
-						data["assigned_status_text"] = "Requires a working prototype to complete (or passive study: [round((ticks / AN.cost_ticks) * 100)]% ([ticks]/[AN.cost_ticks]))."
+						var/pname = AN.prototype_display_name()
+						data["assigned_status_text"] = "Build a working [pname ? pname : "prototype"] and feed it here to complete instantly (or passive study: [round((ticks / AN.cost_ticks) * 100)]% ([ticks]/[AN.cost_ticks]))."
 					if (RESEARCH_MODE_BOOK)
 						data["assigned_status_text"] = "Can only be learned from another faction's research book."
 					else
 						data["assigned_status_text"] = "Passive study: [round((ticks / AN.cost_ticks) * 100)]% ([ticks]/[AN.cost_ticks])."
+	// Queue display: the node names lined up after the current subject.
+	var/list/qnames = list()
+	for (var/qid in queue_list())
+		var/datum/research_node/QN = get_research_node(qid)
+		qnames += QN ? QN.name : qid
+	data["queue_names"] = qnames
+	data["can_queue"] = can_manage
 
-	var/list/layers = list()
-	var/list/layer_index = list()
+	// Nodes are grouped into standalone TREES (Main first, then specialized
+	// trees like Agriculture), each rendered as its own switchable tab; within
+	// a tree they're grouped into layers (categories) as before.
+	var/list/trees = list()
+	var/list/tree_index = list()        // tree name => tree entry (sent to UI)
+	var/list/tree_layer_index = list()  // tree name => (category => layer entry)
 	if (!map)
 		return
 	for (var/node_id in research_nodes)
 		var/datum/research_node/N = research_nodes[node_id]
+		var/list/tree_entry = tree_index[N.tree]
+		if (!tree_entry)
+			// idx is the 0-based tab position (Main = 0). Carried as a data field
+			// rather than relying on the template engine's loop-index alias.
+			tree_entry = list("tree_name" = N.tree, "idx" = trees.len, "layers" = list())
+			tree_index[N.tree] = tree_entry
+			tree_layer_index[N.tree] = list()
+			trees += list(tree_entry)
+		var/list/layer_index = tree_layer_index[N.tree]
 		var/list/layer_entry = layer_index[N.category]
 		if (!layer_entry)
 			layer_entry = list("layer_name" = N.category, "nodes" = list())
 			layer_index[N.category] = layer_entry
-			layers += list(layer_entry)
+			tree_entry["layers"] += list(layer_entry)
 		// node_status()/is_node_done() handle a "none"/null faction fine on
 		// their own (baseline-era grants don't depend on faction), so every
 		// viewer -- factionless included -- sees their era's freebies as Done.
@@ -355,8 +460,21 @@ var/global/list/research_benches = list()
 			"status_class" = status_class,
 			"detail" = detail,
 			"progress_percent" = progress_percent,
-			"assignable" = can_manage && can_assign_node(node_id)))
-	data["layers"] = layers
+			"assignable" = can_manage && can_assign_node(node_id),
+			// Research staff of the OWNING faction can document any DONE node from
+			// its detail popup. can_manage already implies the viewer is in this
+			// bench's faction, so status (computed for viewer_faction) == the
+			// bench faction's status. Books work on any mode; notes need a
+			// tick-accumulating subject (every mode except the unused BOOK mode).
+			"can_write_book" = can_manage && status == RNODE_DONE,
+			"can_write_notes" = can_manage && status == RNODE_DONE && N.mode != RESEARCH_MODE_BOOK,
+			// Name of the item a PROTOTYPE node needs built, so the modal can tell
+			// the researcher what to make instead of leaving them guessing.
+			"prototype_name" = (N.mode == RESEARCH_MODE_PROTOTYPE) ? N.prototype_display_name() : null,
+			// Queueable: staff can line up any not-done node that isn't the current
+			// subject (the queue handler rejects duplicates / already-queued).
+			"queueable" = can_manage && status != RNODE_DONE && node_id != assigned_node))
+	data["trees"] = trees
 
 	ui = GLOB.nanomanager.try_update_ui(user, src, ui_key, ui, data, force_open)
 	if (!ui)
@@ -384,9 +502,17 @@ var/global/list/research_benches = list()
 		return
 	if (href_list["assign"])
 		try_assign_node(H, href_list["assign"])
+	else if (href_list["queue"])
+		try_queue_node(H, href_list["queue"])
+	else if (href_list["clear_queue"])
+		clear_queue(H)
 	else if (href_list["write_book"] || href_list["write_notes"])
+		// The href value is the node id being documented (each completed node's
+		// detail popup carries its own write links), not the bench's assignment.
+		var/is_book = href_list["write_book"] ? TRUE : FALSE
+		var/subject = is_book ? href_list["write_book"] : href_list["write_notes"]
 		if (map && map.can_manage_faction_research(H, faction))
-			write_research_item(H, href_list["write_book"] ? TRUE : FALSE)
+			write_research_item(H, is_book, subject)
 		else
 			to_chat(H, SPAN_WARNING("Only your faction's research staff may document research here."))
 	else if (href_list["claim"])
@@ -403,13 +529,15 @@ var/global/list/research_benches = list()
 		dismiss_researcher(H)
 	GLOB.nanomanager.update_uis(src)
 
-// Writing a trade good requires the assigned node to be DONE (you can only
-// document what you already know). Notes are quick jottings that give a buyer
+// Writing a trade good requires the SUBJECT node to be DONE for the faction (you
+// can only document what you already know). The subject is any completed node the
+// research staff picks from its detail popup -- it doesn't have to be whatever
+// this bench is currently researching. Notes are quick jottings that give a buyer
 // a boost of ticks; a full book is a long transcription that lets a buyer
 // complete the node outright. The effort gap (do_after time) is what keeps the
 // weaker notes worth trading.
-/obj/structure/research_bench/proc/write_research_item(mob/living/human/H, is_book)
-	var/datum/research_node/N = get_research_node(assigned_node)
+/obj/structure/research_bench/proc/write_research_item(mob/living/human/H, is_book, node_id)
+	var/datum/research_node/N = get_research_node(node_id)
 	if (!N)
 		return
 	// One transcription at a time: without this, spam-clicking (or two users
@@ -418,7 +546,7 @@ var/global/list/research_benches = list()
 	if (writing)
 		to_chat(H, SPAN_WARNING("This bench is already busy transcribing research."))
 		return
-	if (!map || !map.is_node_done(faction, assigned_node))
+	if (!map || !map.is_node_done(faction, node_id))
 		to_chat(H, SPAN_WARNING("You can only document research your faction has completed."))
 		return
 	var/wtime = is_book ? RESEARCH_BOOK_WRITE_TIME : RESEARCH_NOTES_WRITE_TIME
@@ -429,20 +557,21 @@ var/global/list/research_benches = list()
 		return
 	writing = FALSE
 	// Re-check ownership/permission after the wait, in case the bench changed hands.
-	if (!map || !map.can_manage_faction_research(H, faction) || !map.is_node_done(faction, assigned_node))
+	if (!map || !map.can_manage_faction_research(H, faction) || !map.is_node_done(faction, node_id))
 		return
 	var/obj/item/weapon/book/research/tree_book/book = new(get_turf(H))
-	book.subject = assigned_node
+	book.subject = node_id
 	book.written_by_faction = faction
+	book.written_by = H.real_name
 	book.transfer_type = is_book ? "book" : "notes"
 	if (is_book)
 		book.name = "research book: [N.name]"
-		book.title = "On the Subject of [N.name]"
-		book.desc = "A [book.styleb] fully documenting the [faction] research into [N.name]. Another faction's research bench can study it to learn the subject outright."
+		book.title = "On the Subject of [N.name], by [H.real_name]"
+		book.desc = "A [book.styleb] fully documenting the [faction] research into [N.name], set down by [H.real_name]. Another faction's research bench can study it to learn the subject outright."
 	else
 		book.name = "research notes: [N.name]"
-		book.title = "Notes on [N.name]"
-		book.desc = "Hastily-written [faction] notes on [N.name]. Another faction's research bench can study them to speed up research on that subject."
+		book.title = "Notes on [N.name], by [H.real_name]"
+		book.desc = "Hastily-written [faction] notes on [N.name] by [H.real_name]. Another faction's research bench can study them to speed up research on that subject."
 	to_chat(H, SPAN_NOTICE("You finish your [is_book ? "research book" : "research notes"] on <b>[N.name]</b>."))
 
 // Consuming items: research books (teach the matching node), matching
@@ -483,6 +612,7 @@ var/global/list/research_benches = list()
 			if (map.complete_node(faction, assigned_node))
 				to_chat(user, SPAN_NOTICE("You study the book. The [faction] now understand <b>[N.name]</b>!"))
 				qdel(W)
+				try_advance_queue()
 			return
 		// Notes: grant a boost of ticks. Meaningful for any tick-accumulating
 		// node -- ANALYSIS and PROTOTYPE both progress this way now; BOOK-only
@@ -497,6 +627,7 @@ var/global/list/research_benches = list()
 			to_chat(user, SPAN_NOTICE("The notes tip your research over the line -- the [faction] have researched <b>[N.name]</b>!"))
 		else
 			to_chat(user, SPAN_NOTICE("You study the notes, advancing your research on <b>[N.name]</b> by [boost] points."))
+		try_advance_queue()
 		return
 
 	if (N.mode == RESEARCH_MODE_PROTOTYPE && N.prototype_type && istype(W, N.prototype_type))
@@ -515,6 +646,39 @@ var/global/list/research_benches = list()
 		qdel(W)
 		map.complete_node(faction, assigned_node)
 		to_chat(user, SPAN_NOTICE("Your prototype works! The [faction] have researched <b>[N.name]</b>."))
+		try_advance_queue()
+		return
+
+	// Study a SAMPLE: an existing example of something the assigned tech will
+	// unlock (reverse-engineering). You can't craft the locked item yet, so a
+	// sample has to be looted / traded / found. Studying it advances the CURRENT
+	// subject only, and each distinct item TYPE teaches something just once.
+	for (var/stype in get_node_recipe_paths(assigned_node))
+		if (!istype(W, stype))
+			continue
+		if (!map.can_manage_faction_research(user, faction))
+			to_chat(user, SPAN_WARNING("Only your faction's research staff may study samples here."))
+			return
+		if (map.is_node_done(faction, assigned_node))
+			to_chat(user, SPAN_WARNING("Your faction has already completed <b>[N.name]</b>."))
+			return
+		if (!map.node_prereqs_met(faction, assigned_node))
+			to_chat(user, SPAN_WARNING("The prerequisites for <b>[N.name]</b> aren't researched yet."))
+			return
+		if (N.mode == RESEARCH_MODE_BOOK)
+			to_chat(user, SPAN_WARNING("Samples only speed up ongoing study; <b>[N.name]</b> can't be advanced that way."))
+			return
+		if (!studied_samples)
+			studied_samples = list()
+		if (W.type in studied_samples)
+			to_chat(user, SPAN_WARNING("Your researchers have already learned all they can from studying \a [W]."))
+			return
+		studied_samples += W.type
+		var/sboost = max(1, round(N.cost_ticks * RESEARCH_SAMPLE_BOOST_FRACTION))
+		var/scompleted = map.add_research_ticks(faction, assigned_node, sboost)
+		to_chat(user, SPAN_NOTICE("Your researchers dismantle and study \the [W], advancing <b>[N.name]</b> by [sboost] points[scompleted ? " -- completing it!" : ""]."))
+		qdel(W)
+		try_advance_queue()
 		return
 
 	// Fallback: feeding coins counts toward the bench's tier upgrade. Only
@@ -523,6 +687,9 @@ var/global/list/research_benches = list()
 	// resource forge's own coin check.
 	if (tier >= MAX_BENCH_TIER)
 		to_chat(user, SPAN_WARNING("This bench is already at maximum tier."))
+		return
+	if (tier >= era_max_tier())
+		to_chat(user, SPAN_WARNING("This bench can't be upgraded past tier [era_max_tier()] until your civilization advances to the next era."))
 		return
 	if (!istype(W, /obj/item/stack/money/coppercoin) && !istype(W, /obj/item/stack/money/silvercoin) && !istype(W, /obj/item/stack/money/goldcoin))
 		to_chat(user, SPAN_WARNING("This bench only accepts copper, silver or gold coins to upgrade."))
@@ -556,9 +723,20 @@ var/global/list/research_benches = list()
 	else
 		to_chat(user, SPAN_NOTICE("You melt down [count] [coinname]. Upgrade progress: [tier_progress]/[needed]."))
 
+// A bench can only be upgraded up to the current GLOBAL era: Stone Age (era 0)
+// caps at tier 0, Bronze Age (era 1) at tier 1, and so on -- never above the
+// absolute ceiling. As the world advances an era, the cap rises with it.
+/obj/structure/research_bench/proc/era_max_tier()
+	return min(MAX_BENCH_TIER, map ? map.ordinal_age : 0)
+
 /obj/structure/research_bench/examine(mob/user, distance = -1)
 	..()
-	to_chat(user, "It is tier [tier][tier < MAX_BENCH_TIER ? " (upgrade progress: [tier_progress]/[BENCH_TIER_UPGRADE_COST(tier)])" : " (maximum)"].")
+	if (tier >= MAX_BENCH_TIER)
+		to_chat(user, "It is tier [tier] (maximum).")
+	else if (tier >= era_max_tier())
+		to_chat(user, "It is tier [tier], capped at the current era -- your civilization must reach the next era to upgrade it further.")
+	else
+		to_chat(user, "It is tier [tier] (upgrade progress: [tier_progress]/[BENCH_TIER_UPGRADE_COST(tier)]).")
 	if (!assigned_node)
 		to_chat(user, "It has no research subject assigned.")
 		return

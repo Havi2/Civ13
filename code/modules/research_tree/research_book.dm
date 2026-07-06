@@ -17,6 +17,7 @@
 	unique = TRUE
 	var/subject = null            // node id this documents
 	var/written_by_faction = null
+	var/written_by = null         // real name of the researcher who authored it
 	var/transfer_type = "book"    // "book" (completes) or "notes" (tick boost)
 
 /obj/item/weapon/book/research/tree_book/attack_self(mob/user as mob)

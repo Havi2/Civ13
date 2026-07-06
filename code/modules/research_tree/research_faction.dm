@@ -163,6 +163,27 @@
 		return complete_node(faction, node_id)
 	return FALSE
 
+// Human-readable name of an ordinal age (0-8), for era-change announcements.
+/proc/ordinal_age_name(age)
+	var/static/list/age_names = list("Stone Age", "Classical Age", "Medieval Age", "Imperial Age", "Industrial Age", "WW1", "WW2", "Cold War", "Modern Age")
+	var/i = age + 1
+	if (i >= 1 && i <= age_names.len)
+		return age_names[i]
+	return "new age"
+
+// TRUE if at least one research-authorised member of faction (Leader, Research
+// Director or Researcher) is currently connected. Benches only tick while this
+// holds, so a faction can't research while nobody who could direct it is around.
+/obj/map_metadata/proc/faction_has_active_researcher(faction)
+	if (!faction || faction == "none")
+		return FALSE
+	for (var/mob/living/human/H in human_mob_list)
+		if (!H.client || H.civilization != faction)
+			continue
+		if (is_faction_leader(H, faction) || is_research_director(H, faction) || H.research_role == "researcher")
+			return TRUE
+	return FALSE
+
 // Marks a node DONE faction-wide. Returns TRUE.
 /obj/map_metadata/proc/complete_node(faction, node_id)
 	var/datum/research_node/N = get_research_node(node_id)
@@ -171,11 +192,17 @@
 	var/list/entry = ensure_node_entry(faction, node_id)
 	entry[RNODE_ENTRY_STATUS] = RNODE_DONE
 	entry[RNODE_ENTRY_TICKS] = N.cost_ticks
-	// Announce to the researching faction only: world-wide shouts for every
-	// node x every faction would be hundreds of lines of noise per round.
-	for (var/mob/living/human/M in human_mob_list)
-		if (M.client && M.civilization == faction)
-			to_chat(M, "<big>Your faction has researched <b>[N.name]</b>!</big>")
+	// Era-changing nodes (the PROTOTYPE-mode capstones) advance the WHOLE WORLD
+	// into their era the first time anyone completes one -- a global event,
+	// announced server-wide. Every other completion is a quiet faction notice
+	// (world-wide shouts for every node x faction would be pure noise).
+	if (N.mode == RESEARCH_MODE_PROTOTYPE && N.era_tier > ordinal_age)
+		ordinal_age = N.era_tier
+		to_chat(world, "<big><font color='#c98a1d'>The discovery of <b>[N.name]</b> by the [faction] sends the world into the <b>[ordinal_age_name(N.era_tier)]</b>!</font></big>")
+	else
+		for (var/mob/living/human/M in human_mob_list)
+			if (M.client && M.civilization == faction)
+				to_chat(M, "<big>Your faction has researched <b>[N.name]</b>!</big>")
 	return TRUE
 
 // ------------------------------------------------------------

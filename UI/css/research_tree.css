@@ -97,14 +97,58 @@
 
 /* --- tree grid --- */
 
-#rt-tree-wrap {
+/* --- tree tabs --- */
+
+#rt-tabs {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 4px;
+	border-bottom: 2px solid #a98c5c;
+	margin: 6px 0 10px;
+}
+
+.rt-tab {
+	font-family: 'Civ13Custom', Georgia, serif;
+	font-weight: bold;
+	font-size: 13px;
+	color: #6b5230;
+	background: #ddcba0;
+	border: 1px solid #a98c5c;
+	border-bottom: none;
+	border-radius: 4px 4px 0 0;
+	padding: 4px 12px;
+	cursor: pointer;
+	position: relative;
+	top: 2px;
+}
+
+.rt-tab:hover {
+	background: #ecdcb4;
+	color: #4a3418;
+}
+
+.rt-tab-active {
+	background: #f4ecd2;
+	color: #2f2211;
+	border-bottom: 2px solid #f4ecd2;
+}
+
+.rt-tree-panel {
+	display: none;
+}
+
+.rt-tree-panel-active {
+	display: block;
+}
+
+.rt-tree-wrap {
 	position: relative;
 	margin-top: 6px;
 	width: max-content;
 	min-width: 100%;
 }
 
-#rt-lines {
+.rt-lines {
 	position: absolute;
 	top: 0;
 	left: 0;
@@ -161,6 +205,9 @@
 .rt-node.rt-layer-industrial { border-left-color: #2e4d6b; }
 .rt-node.rt-layer-military { border-left-color: #6b2620; }
 .rt-node.rt-layer-health { border-left-color: #2c5c3a; }
+.rt-node.rt-layer-agriculture { border-left-color: #5c7a2c; }
+.rt-node.rt-layer-textiles { border-left-color: #6b4a7a; }
+.rt-node.rt-layer-armour { border-left-color: #5a5a6b; }
 
 .rt-node.rt-status-locked {
 	/* Solid, not translucent: opacity affects the WHOLE element (background

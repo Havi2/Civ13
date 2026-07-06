@@ -45,6 +45,10 @@
 //   BOOK   - stronger; complete the node outright.
 // One set of notes grants this fraction of the node's total tick cost.
 #define RESEARCH_NOTE_BOOST_FRACTION 0.3
+// Studying one sample (an existing example of something the node will unlock)
+// grants this fraction of the node's cost. Each distinct item TYPE can only be
+// studied once per assignment, so the ceiling is (distinct unlockables) x this.
+#define RESEARCH_SAMPLE_BOOST_FRACTION 0.12
 // Transcription time (deciseconds) at the bench. Books are far more work than
 // quick notes -- that effort gap is what keeps notes worth trading.
 #define RESEARCH_NOTES_WRITE_TIME 60   // 6s

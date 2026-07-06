@@ -101,6 +101,14 @@
 		recipes += new/datum/stack_recipe("[display_name] fork", /obj/item/weapon/material/kitchen/utensil/fork, TRUE, _on_floor = TRUE, _supplied_material = "[name]")
 		recipes += new/datum/stack_recipe("[display_name] spoon", /obj/item/weapon/material/kitchen/utensil/spoon, TRUE, _on_floor = TRUE, _supplied_material = "[name]")
 	for(var/i in chosen_list)
+		// The legacy flat-research structures are dead crafts under the default
+		// research-tree mode -- only surface them in the specific game modes that
+		// still use them (Resource-Based Research feeds items to the research desk;
+		// Chad Mode + sacrifices at the altar of chad).
+		if (i[3] == "/obj/structure/researchdesk" && !(map && map.resourceresearch))
+			continue
+		if (i[3] == "/obj/structure/researchdesk/chad" && !(map && map.chad_mode_plus))
+			continue
 		// A recipe mapped to a research node gates on that node being DONE for
 		// the faction; otherwise it keeps the legacy research-threshold check.
 		// Era gating (i[12]) applies in both cases.
