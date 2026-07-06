@@ -1564,8 +1564,10 @@ var/global/list/node_grid_col_cache = null
 		"/obj/structure/repair/grindstone" = "pottery_storage",
 		"/obj/structure/repair/gun" = "gunpowder",
 		"/obj/structure/repair/workbench" = "padded_armor",
-		"/obj/structure/researchdesk" = "basic_furniture",
-		"/obj/structure/researchdesk/chad" = "basic_furniture",
+		// Research desk / altar of chad are legacy flat-research structures, not
+		// tree crafts -- they're gated by game mode in generate_recipes_civs()
+		// (hidden outside Resource-Based Research / Chad Mode +), so they are
+		// deliberately NOT mapped to a research node here.
 		"/obj/structure/roof_support" = "stone_masonry",
 		"/obj/structure/roof_support/bamboo" = "stone_masonry",
 		"/obj/structure/roof_support/nordic" = "stone_masonry",

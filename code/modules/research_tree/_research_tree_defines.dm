@@ -16,9 +16,13 @@
 #define RNODE_IN_PROGRESS  3 // has ticks but not finished
 #define RNODE_DONE         4 // completed, unlocks granted faction-wide
 
-// Index into a stored per-node progress entry: list(status_hint, ticks)
-#define RNODE_ENTRY_STATUS 1
-#define RNODE_ENTRY_TICKS  2
+// Index into a stored per-node progress entry: list(status_hint, ticks, prototype_submitted)
+#define RNODE_ENTRY_STATUS    1
+#define RNODE_ENTRY_TICKS     2
+// PROTOTYPE nodes need BOTH full study AND a submitted prototype; this flags
+// whether the matching prototype item has been fed to a bench yet. Older saved
+// entries only have two elements, so reads must guard on entry.len.
+#define RNODE_ENTRY_PROTOTYPE 3
 
 // Phase 3: bench tiers, faction bench cap, resource forge.
 #define MAX_BENCH_TIER 7 // matches the highest min_bench_tier used in the tree

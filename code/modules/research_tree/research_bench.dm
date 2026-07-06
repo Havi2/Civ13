@@ -357,7 +357,8 @@ var/global/list/research_benches = list()
 				switch (AN.mode)
 					if (RESEARCH_MODE_PROTOTYPE)
 						var/pname = AN.prototype_display_name()
-						data["assigned_status_text"] = "Build a working [pname ? pname : "prototype"] and feed it here to complete instantly (or passive study: [round((ticks / AN.cost_ticks) * 100)]% ([ticks]/[AN.cost_ticks]))."
+						var/proto_in = map.node_prototype_submitted(faction, assigned_node)
+						data["assigned_status_text"] = "Needs BOTH full study ([round((ticks / AN.cost_ticks) * 100)]% -- [ticks]/[AN.cost_ticks]) AND a working [pname ? pname : "prototype"] fed to the bench[proto_in ? " (prototype installed -- awaiting study)" : ""]."
 					if (RESEARCH_MODE_BOOK)
 						data["assigned_status_text"] = "Can only be learned from another faction's research book."
 					else
@@ -643,10 +644,21 @@ var/global/list/research_benches = list()
 		if (!map.node_prereqs_met(faction, assigned_node))
 			to_chat(user, SPAN_WARNING("The prerequisites for this aren't researched yet."))
 			return
+		if (map.node_prototype_submitted(faction, assigned_node))
+			to_chat(user, SPAN_WARNING("A working prototype has already been installed for <b>[N.name]</b>; it just needs the study to finish."))
+			return
+		// The prototype is a REQUIREMENT alongside the full study, not a shortcut:
+		// record it as submitted. If the passive study is already complete, that
+		// finishes the node now; otherwise it completes once the ticks catch up.
 		qdel(W)
-		map.complete_node(faction, assigned_node)
-		to_chat(user, SPAN_NOTICE("Your prototype works! The [faction] have researched <b>[N.name]</b>."))
-		try_advance_queue()
+		map.set_prototype_submitted(faction, assigned_node)
+		var/list/pentry = map.get_node_entry(faction, assigned_node)
+		if (pentry && pentry[RNODE_ENTRY_TICKS] >= N.cost_ticks)
+			map.complete_node(faction, assigned_node)
+			to_chat(user, SPAN_NOTICE("Your prototype works and completes the research! The [faction] have researched <b>[N.name]</b>."))
+			try_advance_queue()
+		else
+			to_chat(user, SPAN_NOTICE("You install the working prototype for <b>[N.name]</b>. The research will complete once your researchers finish their study."))
 		return
 
 	// Study a SAMPLE: an existing example of something the assigned tech will

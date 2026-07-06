@@ -94,9 +94,22 @@
 		faction_research[faction] = fac
 	var/list/entry = fac[node_id]
 	if (!entry)
-		entry = list(RNODE_AVAILABLE, 0)
+		entry = list(RNODE_AVAILABLE, 0, 0) // status, ticks, prototype-submitted
 		fac[node_id] = entry
 	return entry
+
+// Whether the prototype for a PROTOTYPE-mode node has been fed to a bench yet.
+/obj/map_metadata/proc/node_prototype_submitted(faction, node_id)
+	var/list/entry = get_node_entry(faction, node_id)
+	return entry && entry.len >= RNODE_ENTRY_PROTOTYPE && entry[RNODE_ENTRY_PROTOTYPE]
+
+// Records that the prototype has been submitted (older 2-element entries are
+// grown to fit the flag first).
+/obj/map_metadata/proc/set_prototype_submitted(faction, node_id)
+	var/list/entry = ensure_node_entry(faction, node_id)
+	while (entry.len < RNODE_ENTRY_PROTOTYPE)
+		entry += 0
+	entry[RNODE_ENTRY_PROTOTYPE] = 1
 
 /obj/map_metadata/proc/is_node_done(faction, node_id)
 	var/datum/research_node/N = get_research_node(node_id)
@@ -160,6 +173,13 @@
 	entry[RNODE_ENTRY_TICKS] += amount
 	entry[RNODE_ENTRY_STATUS] = RNODE_IN_PROGRESS
 	if (entry[RNODE_ENTRY_TICKS] >= N.cost_ticks)
+		// A PROTOTYPE node needs BOTH the full study AND the prototype submitted.
+		// If study is done but the prototype hasn't been fed in yet, hold the
+		// ticks at the cap and wait -- completion happens when the prototype is
+		// submitted (see the bench's attackby).
+		if (N.mode == RESEARCH_MODE_PROTOTYPE && !node_prototype_submitted(faction, node_id))
+			entry[RNODE_ENTRY_TICKS] = N.cost_ticks
+			return FALSE
 		return complete_node(faction, node_id)
 	return FALSE
 

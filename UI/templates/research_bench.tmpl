@@ -90,7 +90,7 @@
 					data-prereqs='{{:node.prereq_ids}}'
 					style='grid-column: {{:node.grid_col}};'>
 					<span class='rt-node-name'>{{:node.name}}{{if node.is_era_changing}} <span class='rt-star' title='Advances the era'>&#9733;</span>{{/if}}</span>
-					<span class='rt-node-sub'>{{:node.mode_text === "Book only" ? "Book only" : node.cost_ticks + " ticks" + (node.mode_text === "Prototype" ? " (or prototype)" : "")}}</span>
+					<span class='rt-node-sub'>{{:node.mode_text === "Book only" ? "Book only" : node.cost_ticks + " ticks" + (node.mode_text === "Prototype" ? " + prototype" : "")}}</span>
 					<div class='rt-node-bar'><div class='rt-node-bar-fill' style='width: {{:node.progress_percent}}%;'></div></div>
 				</div>
 				{{/for}}
@@ -121,7 +121,7 @@
 		{{if node.mode_text !== "Book only"}}
 		<div class='rt-modal-row'>
 			<div class='rt-node-bar'><div class='rt-node-bar-fill' style='width: {{:node.progress_percent}}%;'></div></div>
-			{{if node.mode_text === "Prototype"}}<div class='rt-node-sub'>Build {{:node.prototype_name ? "a " + node.prototype_name : "the prototype"}} and feed it to the bench to complete this outright.</div>{{/if}}
+			{{if node.mode_text === "Prototype"}}<div class='rt-node-sub'>Also requires a working {{:node.prototype_name ? node.prototype_name : "prototype"}} fed to the bench — the full study alone won't finish it.</div>{{/if}}
 		</div>
 		{{/if}}
 
