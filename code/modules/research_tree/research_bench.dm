@@ -446,8 +446,8 @@ var/global/list/research_benches = list()
 	to_chat(H, SPAN_NOTICE("You finish your [is_book ? "research book" : "research notes"] on <b>[N.name]</b>."))
 
 // Consuming items: research books (teach the matching node), matching
-// prototypes (complete a PROTOTYPE-mode node outright), or any other item
-// (its value feeds this bench's tier-upgrade progress).
+// prototypes (complete a PROTOTYPE-mode node outright), or copper/silver/
+// gold coins (their value feeds this bench's tier-upgrade progress).
 /obj/structure/research_bench/attackby(obj/item/W as obj, mob/living/human/user as mob)
 	if (!istype(W) || !ishuman(user))
 		return ..()
@@ -517,26 +517,44 @@ var/global/list/research_benches = list()
 		to_chat(user, SPAN_NOTICE("Your prototype works! The [faction] have researched <b>[N.name]</b>."))
 		return
 
-	// Fallback: anything else fed to the bench counts toward its tier upgrade.
+	// Fallback: feeding coins counts toward the bench's tier upgrade. Only
+	// the three metal coin types (and their subtypes) -- NOT the money base,
+	// which also covers rubles/francs/euros/pounds/etc -- matching the
+	// resource forge's own coin check.
 	if (tier >= MAX_BENCH_TIER)
 		to_chat(user, SPAN_WARNING("This bench is already at maximum tier."))
 		return
-	var/value = W.value || 0 // null-safe: some items never initialise value
-	if (istype(W, /obj/item/stack))
-		var/obj/item/stack/S = W
-		value *= S.amount
+	if (!istype(W, /obj/item/stack/money/coppercoin) && !istype(W, /obj/item/stack/money/silvercoin) && !istype(W, /obj/item/stack/money/goldcoin))
+		to_chat(user, SPAN_WARNING("This bench only accepts copper, silver or gold coins to upgrade."))
+		return
+	var/obj/item/stack/money/coins = W
+	// Let the player choose how much to melt, same as the resource forge:
+	// consuming the whole stack on one click turns a misclick into a wasted
+	// purse.
+	var/count = input(user, "How many coins do you want to feed the bench? (You are holding [coins.amount])", "Research Bench", coins.amount) as num|null
+	if (!count || count <= 0)
+		return
+	// Re-validate after the input pause: the stack may have been spent,
+	// dropped or deleted while the dialog was open.
+	if (QDELETED(coins) || !in_range(src, user))
+		return
+	count = min(round(count), coins.amount)
+	if (count <= 0)
+		return
+	var/coinname = coins.name
+	var/value = coins.value * count
+	coins.use(count)
 	if (!value)
 		to_chat(user, SPAN_WARNING("This has no value to contribute toward upgrading the bench."))
 		return
 	tier_progress += value
-	qdel(W)
 	var/needed = BENCH_TIER_UPGRADE_COST(tier)
 	if (tier_progress >= needed)
 		tier_progress -= needed
 		tier++
-		to_chat(user, SPAN_NOTICE("The bench has been upgraded to tier [tier]!"))
+		to_chat(user, SPAN_NOTICE("You melt down [count] [coinname]. The bench has been upgraded to tier [tier]!"))
 	else
-		to_chat(user, SPAN_NOTICE("Upgrade progress: [tier_progress]/[needed]."))
+		to_chat(user, SPAN_NOTICE("You melt down [count] [coinname]. Upgrade progress: [tier_progress]/[needed]."))
 
 /obj/structure/research_bench/examine(mob/user, distance = -1)
 	..()

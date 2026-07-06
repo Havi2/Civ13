@@ -23,9 +23,10 @@
 // Phase 3: bench tiers, faction bench cap, resource forge.
 #define MAX_BENCH_TIER 7 // matches the highest min_bench_tier used in the tree
 
-// Value (obj/item.value, summed across items fed in) needed to push a bench
-// from tier T to tier T+1. Escalates so late tiers are a real investment.
-#define BENCH_TIER_UPGRADE_COST(T) (80 * (T + 1))
+// Silver-equivalent coin value (copper 0.1 / silver 1 / gold 4, summed across
+// coins fed in) needed to push a bench from tier T to tier T+1. Escalates so
+// late tiers are a real investment.
+#define BENCH_TIER_UPGRADE_COST(T) (120 * (T + 1))
 
 // Base number of benches a faction may own, before any forge upgrades, at
 // a given ordinal_age. +1 per era reached.
