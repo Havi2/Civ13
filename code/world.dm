@@ -326,6 +326,7 @@ var/world_topic_spam_protect_time = world.timeofday
 		sleep (100)
 
 var/global/nextsave = 0
+var/global/persistence_reboot_scheduled = FALSE
 /proc/start_persistence_loop()
 	if (! config.skip_persistence_saving)
 		spawn(300)
@@ -339,7 +340,31 @@ var/global/nextsave = 0
 					nextsave = world.realtime + 216000
 					spawn(0)
 						ticker.savemap()
+				// BYOND never returns freed memory to the OS, so a world that runs for days
+				// eventually hits the process memory ceiling and crashes. Once a day, save the
+				// map and reboot; setup_everything() restores the save on startup.
+				// The world.time check keeps a freshly restarted server from rebooting again
+				// within the same clock hour.
+				if (config.persistence_reboot_hour >= 0 && !persistence_reboot_scheduled)
+					if (text2num(time2text(world.realtime,"hh")) == config.persistence_reboot_hour && world.time > 36000)
+						persistence_reboot_scheduled = TRUE
+						spawn(0)
+							persistence_maintenance_reboot()
 			start_persistence_loop()
+
+/proc/persistence_maintenance_reboot()
+	to_chat(world, "<font color='yellow' size=4><b>Attention - The server will save the world and restart for scheduled maintenance in 5 minutes.</b></font>")
+	sleep(2400)
+	to_chat(world, "<font color='yellow' size=4><b>Attention - Saving and restarting in 1 minute. The world will resume from this save after the restart.</b></font>")
+	sleep(600)
+	nextsave = world.realtime + 216000 // suppress the periodic save around the reboot
+	if (ticker && ticker.savemap() && fexists("map_saves/save_complete.txt"))
+		to_chat(world, "<font color='yellow' size=4><b>Save complete. Rebooting - you can reconnect in a minute or two.</b></font>")
+		sleep(100)
+		world.Reboot("Scheduled persistence maintenance reboot.")
+	else
+		persistence_reboot_scheduled = FALSE
+		message_admins("Scheduled maintenance reboot aborted: the map save did not complete. The server keeps running, but memory will not be reclaimed until it can save and reboot.")
 
 /proc/start_messaging_loop()
 	spawn while (1)

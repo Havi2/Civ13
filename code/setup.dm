@@ -147,6 +147,23 @@
 		config.allow_vote_restart = FALSE
 		to_chat(world, "<big><b>The current round has been set as a Persistent Round.</b></big>")
 
+		// Resume from the last completed save for this map, if any. The daily
+		// save+reboot cycle (see start_persistence_loop()) relies on this to
+		// carry the world across restarts.
+		if (fexists("map_saves/map.txt"))
+			var/list/saved_meta = splittext(file2text("map_saves/map.txt"), "\n")
+			if (saved_meta.len && saved_meta[1] == map.ID)
+				if (fexists("map_saves/save_complete.txt"))
+					nextsave = world.realtime + 216000 // don't immediately resave what we are about to load
+					spawn(50)
+						if (ticker)
+							to_chat(world, "<big><b>Restoring the world from the last persistent save...</b></big>")
+							ticker.loadmap()
+				else
+					admin_notice("<span class='danger'>A map save exists but has no completion marker (interrupted save?). Not auto-loading; restore map_saves/ from map_backups/ and use the Load Map verb if needed.</span>", R_DEBUG)
+			else
+				admin_notice("<span class='danger'>Found a map save for '[saved_meta.len ? saved_meta[1] : "unknown"]' but the current map is '[map.ID]'. Not auto-loading.</span>", R_DEBUG)
+
 	//////////////////////////////////////////////////////
 	admin_notice("<span class='danger'>Initializations complete.</span>", R_DEBUG)
 	sleep(-1)

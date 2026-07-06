@@ -218,6 +218,11 @@ DISABLE_FOV
 #if uncommented, does not automatically save persistence rounds to file
 SKIP_PERSISTENCE_SAVING
 
+#server-clock hour (0-23) at which a persistence server saves the map and reboots
+#to reclaim memory (BYOND never returns freed memory to the OS). The world resumes
+#from the save automatically after the restart. Comment out to disable.
+PERSISTENCE_REBOOT_HOUR 9
+
 #if uncommented, sends webhook events to Civilizationbot for processing
 #WEBHOOK_CAN_FIRE
 #WEBHOOK_ADDRESS http://127.0.0.1:55555/webhook/nomads
