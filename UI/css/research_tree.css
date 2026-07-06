@@ -39,6 +39,15 @@
 	font-family: 'Civ13Custom', Georgia, serif;
 	color: #3a2c1a;
 	padding: 14px;
+	/* A block's width:auto fills its container but does NOT grow to
+	   accommodate an overflowing descendant (the tree grid can run far wider
+	   than the window) -- the content would just spill past this box's right
+	   edge onto the raw, unstyled page background below. max-content lets
+	   this box (and the ones nested below, all the way down to .rt-grid)
+	   grow to match; min-width keeps it filling the window when the tree is
+	   narrow enough not to need the extra room. */
+	width: max-content;
+	min-width: 100%;
 	background:
 		repeating-linear-gradient(115deg, rgba(0,0,0,0.10) 0px, rgba(0,0,0,0.10) 2px, transparent 2px, transparent 5px),
 		repeating-linear-gradient(115deg, rgba(255,255,255,0.04) 0px, rgba(255,255,255,0.04) 1px, transparent 1px, transparent 9px),
@@ -46,6 +55,8 @@
 }
 
 #rt-parchment {
+	width: max-content;
+	min-width: 100%;
 	background:
 		radial-gradient(ellipse at 15% 20%, rgba(255,250,230,0.55), transparent 55%),
 		radial-gradient(ellipse at 85% 75%, rgba(120,90,50,0.18), transparent 60%),
@@ -89,6 +100,8 @@
 #rt-tree-wrap {
 	position: relative;
 	margin-top: 6px;
+	width: max-content;
+	min-width: 100%;
 }
 
 #rt-lines {
@@ -101,6 +114,8 @@
 
 .rt-layer-section {
 	margin-bottom: 10px;
+	width: max-content;
+	min-width: 100%;
 }
 
 .rt-layer-title {
