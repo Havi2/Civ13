@@ -1,5 +1,19 @@
 /* Research tree - parchment-over-wood theme (Phase 4 visual pass) */
 
+/* This UI uses NanoUI's "basic" layout (no stock SS13 chrome), but shared.css
+   and layout_basic.css still load around this sheet -- layout_basic.css AFTER
+   it -- and paint the page dark grey + pad #uiContent. The extra `html`
+   specificity beats their plain `body`/`#uiContent` rules regardless of load
+   order, so none of the stock look bleeds in around the parchment. */
+html body {
+	margin: 0;
+	padding: 0;
+	background: #4d3320;
+}
+html body #uiContent {
+	padding: 0;
+}
+
 @font-face {
 	font-family: 'Civ13Custom';
 	src: url('Alegreya-Regular.ttf') format('truetype');
@@ -329,10 +343,23 @@
 	   color -- without this it falls back to the base NanoUI theme's white
 	   body text, invisible against this cream background. */
 	color: #3a2c1a;
+	/* #rt-modal-backdrop is position:fixed covering the whole viewport with
+	   no scroll of its own, so with no cap here a node that unlocks a lot of
+	   recipes (Stone Masonry: 100+) grows the modal taller than the window --
+	   its top AND bottom both land outside the fixed backdrop with nothing to
+	   scroll, permanently hiding the Assign link. Cap the modal itself and
+	   let #rt-modal-body scroll internally instead, so the close button stays
+	   put and every row (assign link included) is always reachable. */
+	max-height: 84vh;
+	display: flex;
+	flex-direction: column;
 }
 
 #rt-modal-close {
-	float: right;
+	/* float is ignored on flex items (see #rt-modal above) -- align-self
+	   reproduces the same top-right placement within the column flex. */
+	align-self: flex-end;
+	flex: 0 0 auto;
 	cursor: pointer;
 	color: #6b5230;
 	font-weight: bold;
@@ -340,6 +367,10 @@
 	border-radius: 3px;
 	padding: 0px 6px;
 	background: #e9dcb8;
+}
+
+#rt-modal-body {
+	overflow-y: auto;
 }
 
 .rt-modal-title {

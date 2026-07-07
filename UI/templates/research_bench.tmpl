@@ -106,7 +106,7 @@
 
 <!-- Hidden per-node detail content, copied into the modal on click (see research_tree.js) -->
 <div style='display:none;'>
-	{{for data.trees :tree}}
+	{{for data.trees :tree:ti}}
 	{{for tree.layers :layer:li}}
 	{{for layer.nodes :node:ni}}
 	<div id='rt-detail-{{:node.id}}'>
@@ -138,7 +138,7 @@
 		<div class='rt-modal-row'>
 			<div class='rt-modal-label'>Unlocks {{:node.recipe_names.length}} recipe{{:node.recipe_names.length === 1 ? "" : "s"}}</div>
 			<div>
-				{{for node.recipe_names}}
+				{{for node.recipe_names :value:ri}}
 				<span class='rt-recipe-tag'>{{:value}}</span>
 				{{empty}}
 				<span class='rt-recipe-tag'>None yet</span>
