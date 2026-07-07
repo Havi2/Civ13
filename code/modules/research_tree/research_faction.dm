@@ -113,7 +113,12 @@
 
 /obj/map_metadata/proc/is_node_done(faction, node_id)
 	var/datum/research_node/N = get_research_node(node_id)
-	if (N)
+	// The era-baseline free grant is a MAIN-TREE-ONLY mechanic. Specialist
+	// trees (Agriculture, Tailoring, ...) must never auto-complete by era --
+	// a faction's edge there is meant to be durable and actually earned, and
+	// new factions/factionless start at genuine zero in them, with no
+	// era-based catch-up at all (locked design decision).
+	if (N && N.tree == "Main")
 		if (!faction || faction == "none")
 			// Factionless: no persistent identity to freeze a snapshot
 			// against, and no "someone else's achievement" unfairness to
