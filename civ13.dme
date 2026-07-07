@@ -11,6 +11,7 @@
 // BEGIN_INCLUDE
 #include "code\__byond_version_compat.dm"
 #include "code\_macros.dm"
+#include "code\_test_gate.dm"
 #include "code\client_macros.dm"
 #include "code\global.dm"
 #include "code\hooks.dm"
@@ -179,8 +180,8 @@
 #include "code\game\mob\update_icons.dm"
 #include "code\game\mob\vision_cone.dm"
 #include "code\game\mob\groups\companies.dm"
-#include "code\game\mob\groups\factions.dm"
 #include "code\game\mob\groups\faction_symbol.dm"
+#include "code\game\mob\groups\factions.dm"
 #include "code\game\mob\groups\religions.dm"
 #include "code\game\mob\language\earth.dm"
 #include "code\game\mob\language\language.dm"
@@ -1147,6 +1148,7 @@
 #include "code\modules\reagents\reagent_containers\glass\bottle.dm"
 #include "code\modules\research_tree\_research_tree_defines.dm"
 #include "code\modules\research_tree\research_bench.dm"
+#include "code\modules\research_tree\research_bench_admin.dm"
 #include "code\modules\research_tree\research_book.dm"
 #include "code\modules\research_tree\research_faction.dm"
 #include "code\modules\research_tree\research_forge.dm"
@@ -1217,7 +1219,6 @@
 #include "code\processes\lighting\sources.dm"
 #include "interface\interface.dm"
 #include "interface\skin.dmf"
-#include "code\_test_gate.dm"
 #include "maps\nomads\nomads.dmm"
 // END_INCLUDE
 

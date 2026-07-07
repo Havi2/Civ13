@@ -244,6 +244,8 @@
 /obj/map_metadata/proc/count_faction_benches(faction)
 	var/count = 0
 	for (var/obj/structure/research_bench/B in research_benches)
+		if (istype(B, /obj/structure/research_bench/adminbench))
+			continue // debug-only bench; must not eat into a real faction's cap
 		if (B.faction == faction)
 			count++
 	return count
