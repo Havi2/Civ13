@@ -392,8 +392,18 @@
 			var/image/overc1 = image("icon" = icon, "icon_state" = "[bstyle]_2")
 			overc1.color = color2
 			overlays += overc1
-			var/image/overs = image("icon" = icon, "icon_state" = "b_[map.custom_civs[faction][6]]")
-			overs.color = color1
+			// A custom-drawn symbol (see code/game/mob/groups/faction_symbol.dm)
+			// takes over from the fixed shape list when the faction has saved
+			// one. It's already full-color pixel art, so -- unlike the fixed
+			// shapes -- it's laid down untinted; tinting it with color1 would
+			// just recolor over whatever the player actually drew.
+			var/icon/custom_symbol = map.get_faction_symbol_icon(faction)
+			var/image/overs
+			if (custom_symbol)
+				overs = image("icon" = custom_symbol)
+			else
+				overs = image("icon" = icon, "icon_state" = "b_[map.custom_civs[faction][6]]")
+				overs.color = color1
 			overlays += overs
 		update_icon()
 		invisibility = 0
