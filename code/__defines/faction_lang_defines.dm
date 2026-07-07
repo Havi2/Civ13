@@ -1,3 +1,9 @@
+// Custom faction symbols: canvas edge length in pixels (see
+// code/game/mob/groups/faction_symbol.dm and faction_creation.dm)
+#define FACTION_SYMBOL_SIZE 32
+// How many undo steps a symbol canvas keeps (each is a full grid snapshot)
+#define FACTION_SYMBOL_UNDO_MAX 20
+
 //factions only
 #define PIRATES "PIRATES"
 #define CIVILIAN "CIVILIAN"

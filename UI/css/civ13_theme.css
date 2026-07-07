@@ -7,6 +7,21 @@
    there's no conflict, and the already-shipped research tree UI isn't put
    at any risk by this file's existence. */
 
+/* UIs using this theme take NanoUI's "basic" layout (no stock SS13 chrome),
+   but shared.css and layout_basic.css still load around this sheet --
+   layout_basic.css AFTER it -- and paint the page dark grey + pad #uiContent.
+   The extra `html` specificity beats their plain `body`/`#uiContent` rules
+   regardless of load order, so none of the stock look bleeds in around the
+   parchment. */
+html body {
+	margin: 0;
+	padding: 0;
+	background: #4d3320;
+}
+html body #uiContent {
+	padding: 0;
+}
+
 @font-face {
 	font-family: 'Civ13Custom';
 	src: url('Alegreya-Regular.ttf') format('truetype');

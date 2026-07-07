@@ -1,9 +1,11 @@
 // ============================================================
 // Faction custom symbols
 // ------------------------------------------------------------
-// A 32x32 pixel-art editor (NanoUI) that lets a faction's Leader draw a
-// bespoke banner emblem instead of only picking from the fixed shape list
-// chosen at faction creation (see create_faction_pr() in factions.dm). 32x32
+// A 32x32 pixel-art editor (NanoUI) for a faction's banner emblem. The
+// symbol is first drawn inside the Faction Creation UI (faction_creation.dm,
+// which shares this file's grid primitives and canvas assets); afterwards
+// the Leader can only MODIFY it, via this file's editor module and its
+// "Modify Faction Symbol" Faction verb. 32x32
 // is not arbitrary: it's the exact size of the existing "b_[symbol]" states
 // in icons/obj/banners.dmi (confirmed by reading the .dmi's own metadata),
 // so a saved custom symbol drops into the SAME banner overlay slot with no
@@ -22,64 +24,56 @@
 // drawing itself on save, so nothing downstream needs to change.
 // ============================================================
 
-#define FACTION_SYMBOL_SIZE 32
+// FACTION_SYMBOL_SIZE lives in code/__defines/faction_lang_defines.dm: DM
+// macros are include-order-sensitive, and faction_creation.dm (which shares
+// these grid primitives) compiles before this file.
 var/global/list/faction_symbol_shapes = list("star", "sun", "moon", "cross", "big cross", "saltire")
 
-/obj/map_metadata
-	var/list/faction_symbol_grid = list()        // faction => flat list of SIZE*SIZE hex strings, row-major top-to-bottom
-	var/list/faction_symbol_icon = list()        // faction => finalized /icon (null until first save)
-	var/list/faction_symbol_tool = list()        // faction => "paint" or "bucket"
-	var/list/faction_symbol_color = list()       // faction => current active paint color
+// ------------------------------------------------------------
+// Grid primitives: global procs over a plain flat list (row-major, row 1 =
+// visual top) so the same tools serve BOTH the per-faction store below AND
+// the pre-faction draft canvas in the Faction Creation UI
+// (faction_creation.dm), where no faction exists yet to key a store by.
+// ------------------------------------------------------------
 
-/obj/map_metadata/proc/faction_symbol_index(x, y)
+/proc/faction_symbol_grid_index(x, y)
 	return (y - 1) * FACTION_SYMBOL_SIZE + x
 
-/obj/map_metadata/proc/ensure_faction_symbol_grid(faction)
-	var/list/grid = faction_symbol_grid[faction]
-	if (!grid)
-		grid = new/list(FACTION_SYMBOL_SIZE * FACTION_SYMBOL_SIZE)
-		for (var/i = 1, i <= grid.len, i++)
-			grid[i] = "#FFFFFF"
-		faction_symbol_grid[faction] = grid
+/proc/faction_symbol_new_grid()
+	var/list/grid = new/list(FACTION_SYMBOL_SIZE * FACTION_SYMBOL_SIZE)
+	for (var/i = 1, i <= grid.len, i++)
+		grid[i] = "#FFFFFF"
 	return grid
 
-/obj/map_metadata/proc/get_faction_symbol_pixel(faction, x, y)
-	var/list/grid = ensure_faction_symbol_grid(faction)
-	return grid[faction_symbol_index(x, y)]
+/proc/faction_symbol_grid_is_blank(list/grid)
+	for (var/i = 1, i <= grid.len, i++)
+		if (grid[i] != "#FFFFFF")
+			return FALSE
+	return TRUE
 
-/obj/map_metadata/proc/set_faction_symbol_pixel(faction, x, y, color)
-	if (x < 1 || x > FACTION_SYMBOL_SIZE || y < 1 || y > FACTION_SYMBOL_SIZE)
-		return
-	var/list/grid = ensure_faction_symbol_grid(faction)
-	grid[faction_symbol_index(x, y)] = color
-
-// Reads the shipped 32x32 shape art pixel-by-pixel and drops it into the
-// editable grid as a starting point (fully editable afterward -- a stamp,
-// not a lock). BYOND's icon.GetPixel() addresses row 1 as the BOTTOM row;
-// our grid addresses row 1 as the visual TOP (matching the UI's top-down
-// rendering), so the y axis is flipped here.
-/obj/map_metadata/proc/stamp_faction_symbol(faction, shape)
+// Reads the shipped 32x32 shape art pixel-by-pixel into the grid as an
+// editable starting point (a stamp, not a lock). BYOND's icon.GetPixel()
+// addresses row 1 as the BOTTOM row; the grid addresses row 1 as the visual
+// TOP (matching the UI's top-down rendering), so the y axis is flipped here.
+// GetPixel() returns null for fully transparent pixels -- those become plain
+// background, so the grid never holds anything but a real color string.
+/proc/faction_symbol_stamp_grid(list/grid, shape)
 	if (!(shape in faction_symbol_shapes))
 		return
 	var/icon/source = icon('icons/obj/banners.dmi', "b_[shape]")
-	var/list/grid = ensure_faction_symbol_grid(faction)
 	for (var/y = 1, y <= FACTION_SYMBOL_SIZE, y++)
 		for (var/x = 1, x <= FACTION_SYMBOL_SIZE, x++)
-			grid[faction_symbol_index(x, y)] = source.GetPixel(x, FACTION_SYMBOL_SIZE - y + 1)
-
-/obj/map_metadata/proc/clear_faction_symbol(faction)
-	var/list/grid = ensure_faction_symbol_grid(faction)
-	for (var/i = 1, i <= grid.len, i++)
-		grid[i] = "#FFFFFF"
-	faction_symbol_icon[faction] = null
+			var/px = source.GetPixel(x, FACTION_SYMBOL_SIZE - y + 1)
+			grid[faction_symbol_grid_index(x, y)] = px ? px : "#FFFFFF"
 
 // 4-connected iterative flood fill from (x,y), replacing every contiguous
 // same-colored pixel with new_color. Iterative (own stack), not recursive --
 // a 32x32 grid can be up to 1024 cells deep in a pathological case, more
 // than comfortably safe for DM's call stack.
-/obj/map_metadata/proc/bucket_fill_faction_symbol(faction, x, y, new_color)
-	var/list/grid = ensure_faction_symbol_grid(faction)
-	var/target = get_faction_symbol_pixel(faction, x, y)
+/proc/faction_symbol_bucket_fill_grid(list/grid, x, y, new_color)
+	if (x < 1 || x > FACTION_SYMBOL_SIZE || y < 1 || y > FACTION_SYMBOL_SIZE)
+		return
+	var/target = grid[faction_symbol_grid_index(x, y)]
 	if (!target || target == new_color)
 		return
 	var/list/stack = list(list(x, y))
@@ -95,20 +89,108 @@ var/global/list/faction_symbol_shapes = list("star", "sun", "moon", "cross", "bi
 		if (visited[key])
 			continue
 		visited[key] = TRUE
-		if (grid[faction_symbol_index(px, py)] != target)
+		if (grid[faction_symbol_grid_index(px, py)] != target)
 			continue
-		grid[faction_symbol_index(px, py)] = new_color
+		grid[faction_symbol_grid_index(px, py)] = new_color
 		stack += list(list(px + 1, py))
 		stack += list(list(px - 1, py))
 		stack += list(list(px, py + 1))
 		stack += list(list(px, py - 1))
 
-// Bakes the grid into a real PNG via rust_g (the same primitive already used
-// by the -- currently non-functional -- painting canvas feature), loads it
-// as a usable /icon, and re-derives the faction's two display colors from
-// the drawing. Returns TRUE on success.
-/obj/map_metadata/proc/finalize_faction_symbol(faction)
+// Applies a client-batched paint stroke ("x,y_x,y_..." as sent by
+// faction_symbol.js on mouse-up; '_'-joined because ';' would be eaten as a
+// parameter separator by BYOND's href parsing) onto a grid in the given
+// color. The cell string is player-controlled input, so every coordinate is
+// re-validated here regardless of what the client claims to have painted.
+/proc/faction_symbol_apply_stroke(list/grid, cells_string, color)
+	if (!cells_string)
+		return
+	var/list/cells = splittext(cells_string, "_")
+	var/applied = 0
+	for (var/c in cells)
+		if (applied >= FACTION_SYMBOL_SIZE * FACTION_SYMBOL_SIZE)
+			break // a legitimate stroke can never exceed the whole canvas
+		var/list/xy = splittext(c, ",")
+		if (xy.len != 2)
+			continue
+		var/x = text2num(xy[1])
+		var/y = text2num(xy[2])
+		if (isnull(x) || isnull(y))
+			continue
+		x = round(x)
+		y = round(y)
+		if (x < 1 || x > FACTION_SYMBOL_SIZE || y < 1 || y > FACTION_SYMBOL_SIZE)
+			continue
+		grid[faction_symbol_grid_index(x, y)] = color
+		applied++
+
+// ------------------------------------------------------------
+// Undo: a bounded stack of full-grid snapshots, one pushed before every
+// mutating action (stroke, single pixel, bucket fill, stamp, clear). Full
+// 1024-entry snapshots are deliberate: trivially correct to restore, and at
+// FACTION_SYMBOL_UNDO_MAX deep it's small change memory-wise.
+// ------------------------------------------------------------
+
+/proc/faction_symbol_push_undo(list/stack, list/grid)
+	stack += list(grid.Copy())
+	if (stack.len > FACTION_SYMBOL_UNDO_MAX)
+		stack.Cut(1, stack.len - FACTION_SYMBOL_UNDO_MAX + 1)
+
+// Returns the popped snapshot, or null if there's nothing to undo.
+/proc/faction_symbol_pop_undo(list/stack)
+	if (!stack || !stack.len)
+		return null
+	var/list/grid = stack[stack.len]
+	stack.len--
+	return grid
+
+// ------------------------------------------------------------
+// Per-faction store on map_metadata: thin keyed wrappers over the grid
+// primitives above.
+// ------------------------------------------------------------
+
+/obj/map_metadata
+	var/list/faction_symbol_grid = list()        // faction => flat list of SIZE*SIZE hex strings, row-major top-to-bottom
+	var/list/faction_symbol_icon = list()        // faction => finalized /icon (null until first save)
+	var/list/faction_symbol_tool = list()        // faction => "paint" or "bucket"
+	var/list/faction_symbol_color = list()       // faction => current active paint color
+	var/list/faction_symbol_undo = list()        // faction => bounded stack of grid snapshots
+
+/obj/map_metadata/proc/ensure_faction_symbol_undo(faction)
+	var/list/stack = faction_symbol_undo[faction]
+	if (!stack)
+		stack = list()
+		faction_symbol_undo[faction] = stack
+	return stack
+
+/obj/map_metadata/proc/ensure_faction_symbol_grid(faction)
+	var/list/grid = faction_symbol_grid[faction]
+	if (!grid)
+		grid = faction_symbol_new_grid()
+		faction_symbol_grid[faction] = grid
+	return grid
+
+/obj/map_metadata/proc/set_faction_symbol_pixel(faction, x, y, color)
+	if (x < 1 || x > FACTION_SYMBOL_SIZE || y < 1 || y > FACTION_SYMBOL_SIZE)
+		return
 	var/list/grid = ensure_faction_symbol_grid(faction)
+	grid[faction_symbol_grid_index(x, y)] = color
+
+/obj/map_metadata/proc/stamp_faction_symbol(faction, shape)
+	faction_symbol_stamp_grid(ensure_faction_symbol_grid(faction), shape)
+
+/obj/map_metadata/proc/clear_faction_symbol(faction)
+	faction_symbol_grid[faction] = faction_symbol_new_grid()
+	faction_symbol_icon[faction] = null
+
+/obj/map_metadata/proc/bucket_fill_faction_symbol(faction, x, y, new_color)
+	faction_symbol_bucket_fill_grid(ensure_faction_symbol_grid(faction), x, y, new_color)
+
+// Bakes the faction's grid into a real PNG via rust_g (the same primitive
+// already used by the -- currently non-functional -- painting canvas
+// feature) and loads it back as the faction's active /icon. Returns TRUE on
+// success.
+/obj/map_metadata/proc/bake_faction_symbol_png(faction)
 	// text2file() into a not-yet-existing directory creates the missing
 	// parent folders as a side effect (standard, reliable DM file I/O
 	// behaviour) -- do this first so rust_g always has somewhere to write,
@@ -116,6 +198,7 @@ var/global/list/faction_symbol_shapes = list("star", "sun", "moon", "cross", "bi
 	// verify from here (compiled native library, no source to check).
 	if (!fexists("data/faction_symbols"))
 		text2file("", "data/faction_symbols/.keep")
+	var/list/grid = ensure_faction_symbol_grid(faction)
 	var/list/data = list()
 	for (var/i = 1, i <= grid.len, i++)
 		data += grid[i]
@@ -125,6 +208,13 @@ var/global/list/faction_symbol_shapes = list("star", "sun", "moon", "cross", "bi
 		log_debug("faction_symbol: rustg_dmi_create_png failed for [faction]: [result]")
 		return FALSE
 	faction_symbol_icon[faction] = new/icon(png_filename)
+	return TRUE
+
+// Player-facing save: bake the PNG, then re-derive the faction's two display
+// colors from the drawing.
+/obj/map_metadata/proc/finalize_faction_symbol(faction)
+	if (!bake_faction_symbol_png(faction))
+		return FALSE
 	apply_faction_symbol_colors(faction)
 	return TRUE
 
@@ -139,19 +229,7 @@ var/global/list/faction_symbol_shapes = list("star", "sun", "moon", "cross", "bi
 // alone; only the symbol art itself is reset.
 /obj/map_metadata/proc/admin_reset_faction_symbol(faction)
 	clear_faction_symbol(faction)
-	if (!fexists("data/faction_symbols"))
-		text2file("", "data/faction_symbols/.keep")
-	var/list/grid = ensure_faction_symbol_grid(faction)
-	var/list/data = list()
-	for (var/i = 1, i <= grid.len, i++)
-		data += grid[i]
-	var/png_filename = "data/faction_symbols/[ckey(faction)].png"
-	var/result = rustg_dmi_create_png(png_filename, "[FACTION_SYMBOL_SIZE]", "[FACTION_SYMBOL_SIZE]", data.Join(""))
-	if (result)
-		log_debug("faction_symbol: admin reset failed to bake blank png for [faction]: [result]")
-		return FALSE
-	faction_symbol_icon[faction] = new/icon(png_filename)
-	return TRUE
+	return bake_faction_symbol_png(faction)
 
 // ------------------------------------------------------------
 // Color extraction: pick the two colors that best represent the drawing,
@@ -298,6 +376,9 @@ var/global/list/faction_symbol_shapes = list("star", "sun", "moon", "cross", "bi
 	ui = GLOB.nanomanager.try_update_ui(user, src, ui_key, ui, data, force_open)
 	if (!ui)
 		ui = new(user, src, ui_key, "faction_symbol.tmpl", name, 620, 760)
+		// "basic" layout: no stock SS13 NanoUI chrome around the parchment
+		// (see the research bench UI for the same choice).
+		ui.set_layout_key("basic")
 		ui.add_stylesheet("civ13_theme.css")
 		ui.add_stylesheet("faction_symbol.css")
 		ui.add_script("faction_symbol.js")
@@ -324,16 +405,32 @@ var/global/list/faction_symbol_shapes = list("star", "sun", "moon", "cross", "bi
 		var/y = text2num(href_list["y"])
 		var/tool = map.faction_symbol_tool[faction]
 		var/color = map.faction_symbol_color[faction] || "#000000"
+		faction_symbol_push_undo(map.ensure_faction_symbol_undo(faction), map.ensure_faction_symbol_grid(faction))
 		if (tool == "bucket")
 			map.bucket_fill_faction_symbol(faction, x, y, color)
 		else
 			map.set_faction_symbol_pixel(faction, x, y, color)
+	else if (href_list["stroke"])
+		// A whole client-side brush drag, batched into one action -- and, via
+		// stroke_continue on follow-up chunks of the same drag, ONE undo step.
+		var/color = map.faction_symbol_color[faction] || "#000000"
+		if (!href_list["stroke_continue"])
+			faction_symbol_push_undo(map.ensure_faction_symbol_undo(faction), map.ensure_faction_symbol_grid(faction))
+		faction_symbol_apply_stroke(map.ensure_faction_symbol_grid(faction), href_list["cells"], color)
 	else if (href_list["stamp"])
 		var/choice = WWinput(owner, "Stamp which shape onto the canvas? This OVERWRITES the current drawing.", "Faction Symbol", "Cancel", list("Cancel") + faction_symbol_shapes)
 		if (choice && choice != "Cancel")
+			faction_symbol_push_undo(map.ensure_faction_symbol_undo(faction), map.ensure_faction_symbol_grid(faction))
 			map.stamp_faction_symbol(faction, choice)
 	else if (href_list["clear"])
+		faction_symbol_push_undo(map.ensure_faction_symbol_undo(faction), map.ensure_faction_symbol_grid(faction))
 		map.clear_faction_symbol(faction)
+	else if (href_list["undo"])
+		var/list/restored = faction_symbol_pop_undo(map.ensure_faction_symbol_undo(faction))
+		if (restored)
+			map.faction_symbol_grid[faction] = restored
+		else
+			to_chat(owner, SPAN_WARNING("Nothing left to undo."))
 	else if (href_list["save"])
 		if (map.finalize_faction_symbol(faction))
 			to_chat(owner, SPAN_NOTICE("Your faction's new symbol is saved. It'll appear on any banner you build from now on."))
@@ -341,16 +438,30 @@ var/global/list/faction_symbol_shapes = list("star", "sun", "moon", "cross", "bi
 			to_chat(owner, SPAN_WARNING("Something went wrong saving the symbol. Try again."))
 	GLOB.nanomanager.update_uis(src)
 
+// The symbol is MADE exactly once, on the canvas embedded in the Faction
+// Creation UI (faction_creation.dm). This verb is the only way back in
+// afterwards -- a leader-only "modify what exists" action, granted/revoked
+// alongside the other leader verbs at every point where custom-faction
+// leadership changes hands.
 /mob/living/human/proc/design_faction_symbol()
-	set name = "Design Faction Symbol"
+	set name = "Modify Faction Symbol"
 	set category = "Faction"
-	set desc = "Draw a custom symbol for your faction's banners, replacing the default shape."
+	set desc = "Modify your faction's symbol. Changes appear on banners once saved."
 
 	if (!civilization || civilization == "none")
 		to_chat(src, SPAN_WARNING("You are not part of any faction."))
 		return
 	if (!map || !map.is_faction_leader(src, civilization))
-		to_chat(src, SPAN_WARNING("Only the Leader of your faction may redesign its symbol."))
+		to_chat(src, SPAN_WARNING("Only the Leader of your faction may modify its symbol."))
 		return
 	var/datum/nano_module/faction_symbol_editor/editor = new(src, src)
 	editor.ui_interact(src)
+
+// Paired grant/revoke helpers, mirroring make_commander()/remove_commander()
+// in officer.dm. The verb also re-checks is_faction_leader() itself, so a
+// stale grant is harmless -- these just keep the Faction panel honest.
+/mob/living/human/proc/grant_faction_symbol_editor()
+	verbs += /mob/living/human/proc/design_faction_symbol
+
+/mob/living/human/proc/remove_faction_symbol_editor()
+	verbs -= /mob/living/human/proc/design_faction_symbol

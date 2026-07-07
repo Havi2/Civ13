@@ -44,70 +44,34 @@
 
 /////////////   FACTIONS   /////////////
 
+// The map types where players may found their own factions -- the condition
+// the Create Faction verb has always gated on.
+/obj/map_metadata/proc/allows_custom_factions()
+	return nomads == TRUE || ID == MAP_NATIONSRP || ID == MAP_NATIONSRP_TRIPLE || ID == MAP_NATIONSRPMED || ID == MAP_NATIONSRP_WW2 || ID == MAP_NATIONSRP_COLDWAR || ID == MAP_NATIONSRP_COLDWAR_CMP
+
+/obj/map_metadata/proc/faction_name_taken(name)
+	for (var/i = 1, i <= custom_faction_nr.len, i++)
+		if (custom_faction_nr[i] == name)
+			return TRUE
+	return FALSE
+
+// The whole founding flow -- name, symbol drawing, and the founding itself --
+// happens in one Faction Creation window (see faction_creation.dm) instead
+// of the old chain of separate popup dialogs.
 /mob/living/human/proc/create_faction()
 	set name = "Create Faction"
 	set category = "Faction"
-	var/mob/living/human/U
 
-	if (istype(src, /mob/living/human))
-		U = src
-	else
-		return
-
-	if (map.nomads == TRUE || map.ID == MAP_NATIONSRP || map.ID == MAP_NATIONSRP_TRIPLE || map.ID == MAP_NATIONSRPMED || map.ID == MAP_NATIONSRP_WW2 || map.ID == MAP_NATIONSRP_COLDWAR || map.ID == MAP_NATIONSRP_COLDWAR_CMP)
-		if (U.civilization != "none")
-			to_chat(usr, SPAN_WARNING("You are already in a faction. Abandon it first."))
-			return
-		else
-			var/choosename = input(src, "Choose a name for the faction:") as text|null
-			if (choosename != null && choosename != "")
-				create_faction_pr(choosename)
-				make_commander()
-				make_title_changer()
-				return
-	else
-		to_chat(usr, SPAN_WARNING("You cannot create a faction in this map."))
-		return
-
-/mob/living/human/proc/create_faction_pr(var/newname = "none")
 	if (!ishuman(src))
 		return
-	var/mob/living/human/H = src
-	for(var/i = 1, i <= map.custom_faction_nr.len, i++)
-		if (map.custom_faction_nr[i] == newname)
-			to_chat(usr, SPAN_WARNING("That faction already exists. Choose another name."))
-			return
-	if (newname != null && newname != "none")
-		var/choosecolor1 = "#000000"
-		var/choosecolor2 = "#FFFFFF"
-		var/choosesymbol = "star"
-		choosesymbol = WWinput(src, "Choose a symbol for the new faction:", "Faction Creation", "Cancel", list("Cancel","star","sun","moon","cross","big cross","saltire"))
-		if (choosesymbol == "Cancel")
-			return
-		choosecolor1 = WWinput(H, "Choose main/symbol color:", "Color" , "#000000", "color")
-		if (choosecolor1 == null || choosecolor1 == "")
-			return
-
-		choosecolor2 = WWinput(H, "Choose the secondary/background color:", "Color" , "#FFFFFF", "color")
-		if (choosecolor2 == null || choosecolor2 == "")
-			return
-
-		H.civilization = newname
-		H.leader = TRUE
-		H.faction_perms = list(1,1,1,1)
-		map.custom_faction_nr += newname
-												//ind						mil					med			leader money	symbol	main color	backcolor, sales tax, business tax
-		var/newnamev = list("[newname]" = list(map.default_research,map.default_research,map.default_research,H,0,choosesymbol,choosecolor1,choosecolor2,10,10))
-		map.custom_civs += newnamev
-		// Research tree: freeze this faction's main-tree baseline era at the
-		// moment they're founded (see is_node_done in research_faction.dm) --
-		// it must not keep growing later just because the world's era
-		// advances due to OTHER factions' achievements.
-		map.faction_baseline_era[newname] = map.ordinal_age
-		to_chat(usr, "<big>You are now the leader of the <b>[newname]</b> faction.</big>")
+	if (!map || !map.allows_custom_factions())
+		to_chat(usr, SPAN_WARNING("You cannot create a faction in this map."))
 		return
-	else
+	if (civilization != "none")
+		to_chat(usr, SPAN_WARNING("You are already in a faction. Abandon it first."))
 		return
+	var/datum/nano_module/faction_creation/wizard = new(src, src)
+	wizard.ui_interact(src)
 
 
 /mob/living/human/proc/abandon_faction()
@@ -154,6 +118,7 @@
 	faction_perms = list(0,0,0,0)
 	to_chat(src, "You left your faction. You are now a Nomad.")
 	remove_commander()
+	remove_faction_symbol_editor()
 	return TRUE
 
 /mob/living/human/proc/transfer_faction()
@@ -187,12 +152,14 @@
 						var/mob/living/human/CM = choice2
 						CM.make_commander()
 						CM.make_title_changer()
+						CM.grant_faction_symbol_editor()
 						CM.leader = TRUE
 						CM.faction_perms = list(1,1,1,1)
 						U.leader = FALSE
 						U.faction_perms = list(0,0,0,0)
 						U.remove_title_changer()
 						U.remove_commander()
+						U.remove_faction_symbol_editor()
 				else
 					to_chat(usr, SPAN_WARNING("You are not the Leader, so you can't transfer the faction's leadership."))
 					return
@@ -228,6 +195,7 @@
 				U.faction_perms = list(1,1,1,1)
 				U.make_title_changer()
 				make_commander()
+				U.grant_faction_symbol_editor()
 	else
 		to_chat(usr, SPAN_WARNING("You cannot become a Leader in this map."))
 		return
@@ -579,14 +547,39 @@
 				if (relf == H.civilization && H.stat != DEAD)
 					map.facl[relf] += 1
 
-		var/body = "<html><head><title>Faction List</title></head>[common_browser_style]<b>FACTION LIST</b><br><br>"
+		var/body = "<html><head><title>Faction List</title></head>[common_browser_style]<b>FACTION LIST</b><br><br><table cellpadding='4'>"
 		for (var/relf in map.facl)
 			if (map.facl[relf] > 0)
-				body += "<b>[relf]</b>: [map.facl[relf]] members.</br>"
-		body += {"<br>
+				// Faction symbol on the left: the custom-drawn icon if one
+				// was ever saved, otherwise the fixed shape tinted with the
+				// faction's main color -- the same look the banner overlay
+				// gives it (white art multiplied by color1).
+				var/icon/symbol = map.get_faction_symbol_icon(relf)
+				if (!symbol)
+					var/list/civ_data = map.custom_civs[relf]
+					if (civ_data && civ_data.len >= 7)
+						symbol = new/icon('icons/obj/banners.dmi', "b_[civ_data[6]]")
+						symbol.Blend(civ_data[7], ICON_MULTIPLY)
+				var/img_cell = ""
+				if (symbol)
+					// browse_rsc BEFORE the browse() below, so the page can
+					// reference the image by name. ckey() makes the faction
+					// name filesystem-safe.
+					usr << browse_rsc(symbol, "flist_[ckey(relf)].png")
+					img_cell = "<img src='flist_[ckey(relf)].png' width='32' height='32'>"
+				// Name with the motto to its right, flavour text below, then
+				// the member count. Motto/flavour are stored html-encoded.
+				var/text_cell = "<b>[relf]</b>"
+				if (map.faction_motto[relf])
+					text_cell += " &mdash; <i>[map.faction_motto[relf]]</i>"
+				if (map.faction_flavour[relf])
+					text_cell += "<br>[map.faction_flavour[relf]]"
+				text_cell += "<br><small>[map.facl[relf]] member\s.</small>"
+				body += "<tr><td valign='top'>[img_cell]</td><td>[text_cell]</td></tr>"
+		body += {"</table><br>
 			</body></html>
 		"}
 
-		usr << browse(body,"window=artillery_window;border=1;can_close=1;can_resize=1;can_minimize=0;titlebar=1;size=250x450")
+		usr << browse(body,"window=artillery_window;border=1;can_close=1;can_resize=1;can_minimize=0;titlebar=1;size=420x520")
 	else
 		return
