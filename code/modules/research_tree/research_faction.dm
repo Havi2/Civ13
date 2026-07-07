@@ -127,14 +127,15 @@
 				return TRUE
 		else
 			// A real faction's baseline is frozen at whatever era existed
-			// when they were founded (set in create_faction_pr()). It must
+			// when they were founded (set in found_faction(), see
+			// faction_creation.dm). It must
 			// NOT keep growing later just because the era advances due to
 			// OTHER factions' achievements or the legacy age-up system --
 			// past that snapshot, they have to actually research it.
 			var/snapshot_era = faction_baseline_era[faction]
 			if (isnull(snapshot_era))
 				// Faction predates snapshot tracking (or was created outside
-				// create_faction_pr(), e.g. a map's fixed civs) -- grandfather
+				// the creation UI, e.g. a map's fixed civs) -- grandfather
 				// it in at whatever era it is right now, freezing from here on.
 				snapshot_era = ordinal_age
 				faction_baseline_era[faction] = snapshot_era

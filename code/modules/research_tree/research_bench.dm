@@ -480,6 +480,10 @@ var/global/list/research_benches = list()
 	ui = GLOB.nanomanager.try_update_ui(user, src, ui_key, ui, data, force_open)
 	if (!ui)
 		ui = new(user, src, ui_key, "research_bench.tmpl", name, 900, 680)
+		// "basic" layout: just the content region, none of the stock SS13
+		// NanoUI chrome (title bar/status icon) that the default layout wraps
+		// around every UI -- this window is all parchment, edge to edge.
+		ui.set_layout_key("basic")
 		ui.add_stylesheet("research_tree.css")
 		ui.add_script("research_tree.js")
 		ui.set_initial_data(data)
