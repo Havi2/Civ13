@@ -57,10 +57,29 @@
 	desc = "A large wooden workbench. The gunsmith's main work tool. It has [steel_amt] steel and [wood_amt] wood on it."
 	show_gunsmith_ui(user)
 
+// Effective gunsmithing tech band: 5 = cartridge basics (bolt-action,
+// revolver, pump, small semi-auto), 6 = self-loading arms, 7 = full-auto.
+// Below 5 the bench offers no parts (pre-cartridge eras). Driven by the
+// user's faction research nodes; is_node_done() falls back to the era
+// baseline for factionless users, so TDM maps keep the old ordinal_age
+// behavior (cartridge_ammo era5 / selfloading era6 / automatic era7).
+/proc/gunsmith_tech_band(mob/living/human/H)
+	if (!map)
+		return 4
+	var/faction = istype(H) ? H.civilization : null
+	if (map.is_node_done(faction, "automatic_weapons"))
+		return 7
+	if (map.is_node_done(faction, "selfloading_firearms"))
+		return 6
+	if (map.is_node_done(faction, "cartridge_ammo"))
+		return 5
+	return 4
+
 /obj/structure/gunbench/proc/show_gunsmith_ui(mob/user)
 	var/mob/living/human/H = user
 	if (!istype(H))
 		return
+	var/band = gunsmith_tech_band(H)
 	if (H.getStatCoeff("crafting") < 2.5 && map.civilizations)
 		to_chat(H, "You don't have the skills to design a new gun! Use an existing blueprint.")
 		return
@@ -114,16 +133,16 @@ function pickAppearance(a) {
 		var/step = current_gun.step
 		if (step < 1)
 			dat += "<b>Step 1: Choose Stock</b><br>"
-			if (map.ordinal_age == 5)
+			if (band == 5)
 				dat += "<a href='?src=\ref[src];step=1&choice=Rifle Wooden Stock'>Rifle Wooden Stock (7 wood)</a><br>"
 				dat += "<a href='?src=\ref[src];step=1&choice=Carbine Wooden Stock'>Carbine Wooden Stock (5 wood)</a><br>"
 				dat += "<a href='?src=\ref[src];step=1&choice=Pistol Grip'>Pistol Grip (3 steel)</a><br>"
-			else if (map.ordinal_age == 6)
+			else if (band == 6)
 				dat += "<a href='?src=\ref[src];step=1&choice=Rifle Wooden Stock'>Rifle Wooden Stock (7 wood)</a><br>"
 				dat += "<a href='?src=\ref[src];step=1&choice=Carbine Wooden Stock'>Carbine Wooden Stock (5 wood)</a><br>"
 				dat += "<a href='?src=\ref[src];step=1&choice=Pistol Grip'>Pistol Grip (3 steel)</a><br>"
 				dat += "<a href='?src=\ref[src];step=1&choice=Steel Stock'>Steel Stock (5 steel)</a><br>"
-			else if (map.ordinal_age >= 7)
+			else if (band >= 7)
 				dat += "<a href='?src=\ref[src];step=1&choice=Rifle Wooden Stock'>Rifle Wooden Stock (7 wood)</a><br>"
 				dat += "<a href='?src=\ref[src];step=1&choice=Carbine Wooden Stock'>Carbine Wooden Stock (5 wood)</a><br>"
 				dat += "<a href='?src=\ref[src];step=1&choice=Pistol Grip'>Pistol Grip (3 steel)</a><br>"
@@ -132,13 +151,13 @@ function pickAppearance(a) {
 
 		else if (step < 2)
 			dat += "<b>Step 2: Choose Receiver</b><br>"
-			if (map.ordinal_age == 5)
+			if (band == 5)
 				for (var/r in list("Bolt-Action","Revolver","Semi-Auto (small)","Pump-Action"))
 					dat += "<a href='?src=\ref[src];step=2&choice=[r]'>[r]</a><br>"
-			else if (map.ordinal_age == 6)
+			else if (band == 6)
 				for (var/r in list("Bolt-Action","Revolver","Semi-Auto (small)","Semi-Auto (large)","Open-Bolt (small)","Open-Bolt (large)","Pump-Action"))
 					dat += "<a href='?src=\ref[src];step=2&choice=[r]'>[r]</a><br>"
-			else if (map.ordinal_age >= 7)
+			else if (band >= 7)
 				for (var/r in list("Bolt-Action","Revolver","Semi-Auto (small)","Semi-Auto (large)","Open-Bolt (small)","Open-Bolt (large)","Pump-Action","Dual Selective Fire","Triple Selective Fire"))
 					dat += "<a href='?src=\ref[src];step=2&choice=[r]'>[r]</a><br>"
 
@@ -146,9 +165,9 @@ function pickAppearance(a) {
 			var/receiver_type = current_gun.receiver_type
 			dat += "<b>Step 3: Choose Feeding System</b><br>"
 			var/list/feeding_opts = list()
-			if (map.ordinal_age == 5)
+			if (band == 5)
 				feeding_opts = list("Internal Magazine","Tubular")
-			else if (map.ordinal_age >= 6)
+			else if (band >= 6)
 				feeding_opts = list("Internal Magazine", "Tubular", "External Magazine","Large External Magazine","Open (Belt-Fed)")
 			if (receiver_type == "Pump-Action")
 				feeding_opts = list("Tubular")
@@ -156,9 +175,9 @@ function pickAppearance(a) {
 				feeding_opts = list("Revolving")
 			if (receiver_type == "Semi-Auto (small)")
 				feeding_opts = list("Internal Magazine (Removable)")
-			if (receiver_type == "Open-Bolt (large)" && map.ordinal_age >= 6)
+			if (receiver_type == "Open-Bolt (large)" && band >= 6)
 				feeding_opts = list("Internal Magazine", "External Magazine","Large External Magazine","Open (Belt-Fed)")
-			if ((receiver_type == "Bolt-Action" || receiver_type == "Semi-Auto (large)") && map.ordinal_age >= 6)
+			if ((receiver_type == "Bolt-Action" || receiver_type == "Semi-Auto (large)") && band >= 6)
 				feeding_opts = list("Internal Magazine", "Tubular", "External Magazine","Large External Magazine")
 			for (var/f in feeding_opts)
 				dat += "<a href='?src=\ref[src];step=3&choice=[f]'>[f]</a><br>"
@@ -169,11 +188,11 @@ function pickAppearance(a) {
 				dat += "<a href='?src=\ref[src];step=4&choice=Pistol Barrel'>Pistol Barrel (4 steel)</a><br>"
 			else if (current_gun.feeding_type == "Open (Belt-Fed)")
 				dat += "<a href='?src=\ref[src];step=4&choice=Air-Cooled Barrel'>Air-Cooled Barrel (10 steel)</a><br>"
-			else if (map.ordinal_age == 5)
+			else if (band == 5)
 				dat += "<a href='?src=\ref[src];step=4&choice=Pistol Barrel'>Pistol Barrel (4 steel)</a><br>"
 				dat += "<a href='?src=\ref[src];step=4&choice=Rifle Barrel'>Rifle Barrel (3 steel)</a><br>"
 				dat += "<a href='?src=\ref[src];step=4&choice=Long Rifle Barrel'>Long Rifle Barrel (8 steel)</a><br>"
-			else if (map.ordinal_age >= 6)
+			else if (band >= 6)
 				dat += "<a href='?src=\ref[src];step=4&choice=Pistol Barrel'>Pistol Barrel (4 steel)</a><br>"
 				dat += "<a href='?src=\ref[src];step=4&choice=Carbine Barrel'>Carbine Barrel (5 steel)</a><br>"
 				dat += "<a href='?src=\ref[src];step=4&choice=Rifle Barrel'>Rifle Barrel (3 steel)</a><br>"
@@ -229,7 +248,7 @@ function pickAppearance(a) {
 					if ("Pump-Action")
 						look_opts = list("shotgun", "remington870", "remington11", "winchester1873")
 					if ("Bolt-Action")
-						if (map.ordinal_age >= 6)
+						if (band >= 6)
 							look_opts = list("gewehr71", "gewehr98", "kar98k", "lebel", "mosin", "mosin30", "murata", "enfield", "p14enfield", "carcano", "springfieldww2", "arisaka30", "arisaka35", "arisaka38", "arisaka99")
 						else
 							look_opts = list("gewehr71", "gewehr98", "lebel", "mosin", "murata", "enfield", "p14enfield", "carcano", "arisaka30", "arisaka35")
