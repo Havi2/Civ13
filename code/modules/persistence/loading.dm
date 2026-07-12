@@ -135,10 +135,7 @@
 			log_startup_progress("	Loaded z-level [B] in [stop_watch(watch)]s.")
 		catch(var/exception/e)
 			message_admins("EXCEPTION IN MAP LOADING!! [e] on [e.file]:[e.line]")
-	// Drop the bookkeeping references so loaded/replaced atoms are not pinned in
-	// memory until the next load.
-	existing_references = list()
-	all_loaded = list()
+	clear_bookkeeping()
 	log_startup_progress("Finished loading.")
 
 // Restores the world-level state written at the top of Save_World(). Load_World()

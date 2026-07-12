@@ -48,12 +48,7 @@
 				savefile["[turf.x]"] << ref
 				TICK_CHECK
 		log_startup_progress("	Saved z-level [A].")
-	// Drop the bookkeeping references so qdel'd atoms can be garbage collected
-	// between saves - these lists otherwise pin every atom of the last z-level
-	// until the next save runs.
-	saving_references = list()
-	existing_references = list()
-	found_types = list()
+	clear_bookkeeping()
 	text2file(time2text(world.realtime,"YYYY-MM-DD-(hh-mm-ss)"),"map_saves/save_complete.txt")
 	log_startup_progress("Finished saving.")
 	return 1

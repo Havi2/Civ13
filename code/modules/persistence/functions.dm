@@ -103,6 +103,15 @@ map_storage
 			src.ignore_types = ignore
 		return
 
+// Drops the save/load bookkeeping references so qdel'd atoms can be garbage
+// collected - these lists otherwise pin every atom they touched until the next
+// save/load runs. Called after a save or load finishes, successfully or not.
+/map_storage/proc/clear_bookkeeping()
+	saving_references = list()
+	existing_references = list()
+	found_types = list()
+	all_loaded = list()
+
 // Returns true if the value is purely numeric, return false if there are non-numeric
 // characters contained within the text string.
 /map_storage/proc/IsNumeric(text)
@@ -170,6 +179,7 @@ var/global/persistence_save_in_progress = FALSE
 	try
 		map_storage.Save_World()
 	catch(var/exception/e)
+		map_storage.clear_bookkeeping()
 		persistence_save_in_progress = FALSE
 		message_admins("EXCEPTION IN MAP SAVING!! [e] on [e.file]:[e.line]")
 		return 0
