@@ -66,9 +66,19 @@ function fsPaintLine(x0, y0, x1, y1) {
 	}
 }
 
+// While a multi-chunk stroke is still being sent (each chunk is its own timed
+// byond:// navigation), any OTHER action -- a new stroke, Undo, Clear, Save --
+// would interleave with the remaining chunks server-side and corrupt the
+// stroke/undo state. This editor is single-user, so a client-side lock for the
+// in-flight window (a second or two at worst) is all the serialisation needed.
+var fsChunksInFlight = false;
+
 function fsSendChunks(cells, offset) {
 	var chunk = cells.slice(offset, offset + FS_STROKE_CHUNK);
-	if (!chunk.length) return;
+	if (!chunk.length) {
+		fsChunksInFlight = false;
+		return;
+	}
 	// Joined with '_', NOT ';': NanoUtility.generateHref() builds the href by
 	// plain concatenation with ';' between parameters and no URL-encoding, so
 	// BYOND's param parser treats every ';' as a parameter separator -- a
@@ -81,10 +91,34 @@ function fsSendChunks(cells, offset) {
 	}
 	window.location.href = NanoUtility.generateHref(params);
 	if (offset + FS_STROKE_CHUNK < cells.length) {
+		fsChunksInFlight = true;
 		// Space follow-up chunks out so each byond:// navigation actually
 		// lands instead of being replaced by the next one.
 		setTimeout(function () { fsSendChunks(cells, offset + FS_STROKE_CHUNK); }, 250);
+	} else {
+		fsChunksInFlight = false;
 	}
+}
+
+// Swallow toolbar clicks (Undo/Clear/Save/stamp links) while chunks are still
+// in flight, so they can't slip between two chunks of the same stroke.
+function fsSuppressClicksInFlight(e) {
+	if (!fsChunksInFlight) return;
+	var ev = e || window.event;
+	var t = ev.target || ev.srcElement;
+	while (t && t.nodeType === 1) {
+		if (t.tagName === 'A') {
+			if (ev.preventDefault) ev.preventDefault();
+			ev.returnValue = false;
+			return false;
+		}
+		t = t.parentNode;
+	}
+}
+if (document.addEventListener) {
+	document.addEventListener('click', fsSuppressClicksInFlight, true);
+} else if (document.attachEvent) {
+	document.attachEvent('onclick', fsSuppressClicksInFlight);
 }
 
 function fsEndStroke() {
@@ -104,6 +138,12 @@ function fsBindCells() {
 			var x = parseInt(el.getAttribute('data-x'), 10);
 			var y = parseInt(el.getAttribute('data-y'), 10);
 			el.onmousedown = function (e) {
+				// Don't start anything while a previous stroke's chunks are
+				// still being sent -- new cells would interleave with them.
+				if (fsChunksInFlight) {
+					if (e && e.preventDefault) e.preventDefault();
+					return false;
+				}
 				if (fsTool() === 'paint') {
 					// A mouse-up outside the window can strand a stroke;
 					// commit it before starting the new one.

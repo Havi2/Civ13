@@ -647,8 +647,12 @@ var/global/list/node_grid_col_cache = null
 		"/obj/item/stack/material/electronics" = "electricity",
 		"/obj/structure/telegraph" = "electricity",
 		"/obj/structure/teleprinter" = "electricity",
-		// --- factories (15) ---
+		// --- factories (16) ---
 		"/obj/item/camera/earlymodern" = "factories",
+		// nuclear_power's prototype item: must be researchable BEFORE that
+		// node, or the tree deadlocks (can't craft the geiger counter the
+		// node itself demands).
+		"/obj/item/weapon/geiger_counter" = "factories",
 		"/obj/item/weapon/can" = "factories",
 		"/obj/item/weapon/can/large" = "factories",
 		"/obj/item/weapon/can/small" = "factories",
@@ -1097,8 +1101,9 @@ var/global/list/node_grid_col_cache = null
 		"/obj/structure/religious/monument/priesthood/saint" = "monuments",
 		"/obj/structure/religious/monument/venus" = "monuments",
 		"/obj/structure/religious/statue" = "monuments",
-		// --- nuclear_power (2) ---
-		"/obj/item/weapon/geiger_counter" = "nuclear_power",
+		// --- nuclear_power (1) ---
+		// geiger counter deliberately NOT here: it's this node's prototype
+		// item, so it must be craftable earlier (it's under factories, era4).
 		"/obj/structure/sign/radiation" = "nuclear_power",
 		// --- optics_instruments (15) ---
 		"/obj/item/camera/early" = "optics_instruments",

@@ -363,8 +363,11 @@ var/global/persistence_reboot_scheduled = FALSE
 		sleep(100)
 		world.Reboot("Scheduled persistence maintenance reboot.")
 	else
-		persistence_reboot_scheduled = FALSE
-		message_admins("Scheduled maintenance reboot aborted: the map save did not complete. The server keeps running, but memory will not be reclaimed until it can save and reboot.")
+		// Deliberately NOT clearing persistence_reboot_scheduled: the loop
+		// re-checks every 30s, so clearing it would re-announce "restarting in
+		// 5 minutes" and re-attempt a full save for the rest of the hour. The
+		// flag resets on the next successful reboot; until then admins decide.
+		message_admins("Scheduled maintenance reboot aborted: the map save did not complete. The server keeps running, but memory will not be reclaimed until it is manually saved and rebooted.")
 
 /proc/start_messaging_loop()
 	spawn while (1)

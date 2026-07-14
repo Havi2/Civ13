@@ -19,6 +19,7 @@
 
 #define FACTION_MOTTO_MAX_CHARS 80
 #define FACTION_FLAVOUR_MAX_WORDS 120
+#define FACTION_NAME_MAX_CHARS 40
 
 // Motto (one line, next to the name) and flavour text (short description,
 // under the name) as shown in the Faction List (see faction_list() in
@@ -85,10 +86,17 @@
 	if (href_list["set_name"])
 		var/newname = input(owner, "Choose a name for the faction:", "Faction Creation", draft_name) as text|null
 		if (newname && newname != "")
+			// The name becomes an assoc key everywhere (custom_civs,
+			// mob.civilization) AND raw HTML in the faction list, so strip
+			// markup outright (encode=FALSE) rather than html-encode --
+			// entities in a key would haunt every later comparison.
+			newname = sanitize(newname, FACTION_NAME_MAX_CHARS + 1, FALSE)
+			if (!newname || newname == "")
+				to_chat(owner, SPAN_WARNING("That name contains nothing usable. Choose another name."))
 			// Warned here for immediate feedback, but re-checked in
 			// found_faction() -- another faction can claim the name while
 			// this window sits open.
-			if (map.faction_name_taken(newname))
+			else if (map.faction_name_taken(newname))
 				to_chat(owner, SPAN_WARNING("That faction already exists. Choose another name."))
 			else
 				draft_name = newname
@@ -159,6 +167,9 @@
 // chain did, performed atomically from the draft. Returns TRUE on success
 // (and closes the window); FALSE leaves the draft open to fix and retry.
 /datum/nano_module/faction_creation/proc/found_faction()
+	// Re-sanitize before the name becomes a permanent assoc key and raw HTML
+	// everywhere -- set_name already sanitized, but this is the last gate.
+	draft_name = sanitize(draft_name, FACTION_NAME_MAX_CHARS + 1, FALSE)
 	if (!draft_name || draft_name == "" || draft_name == "none")
 		to_chat(owner, SPAN_WARNING("Choose a name for the faction first."))
 		return FALSE

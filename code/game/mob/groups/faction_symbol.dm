@@ -179,9 +179,11 @@ var/global/list/faction_symbol_shapes = list("star", "sun", "moon", "cross", "bi
 /obj/map_metadata/proc/stamp_faction_symbol(faction, shape)
 	faction_symbol_stamp_grid(ensure_faction_symbol_grid(faction), shape)
 
+// Clears only the DRAFT grid. The baked icon stays active until the next
+// Save -- Clear followed by closing the editor (or Undo) must not change
+// what banners display. admin_reset_faction_symbol() re-bakes explicitly.
 /obj/map_metadata/proc/clear_faction_symbol(faction)
 	faction_symbol_grid[faction] = faction_symbol_new_grid()
-	faction_symbol_icon[faction] = null
 
 /obj/map_metadata/proc/bucket_fill_faction_symbol(faction, x, y, new_color)
 	faction_symbol_bucket_fill_grid(ensure_faction_symbol_grid(faction), x, y, new_color)
@@ -302,39 +304,45 @@ var/global/list/faction_symbol_shapes = list("star", "sun", "moon", "cross", "bi
 	if (!freq.len)
 		return // nothing but background was drawn -- leave existing colors alone
 
+	// Bucket keys are STRINGS: a numeric key on a DM list is a positional
+	// index, so list[15] on an empty list runtimes instead of associating.
 	var/list/bucket_weight = list()
 	var/list/bucket_color = list()
 	var/list/bucket_color_count = list()
 	for (var/c in freq)
 		var/hue = round(hex2hue(c) / 15) * 15
-		bucket_weight[hue] = (bucket_weight[hue] ? bucket_weight[hue] : 0) + freq[c]
-		if (!bucket_color_count[hue] || freq[c] > bucket_color_count[hue])
-			bucket_color_count[hue] = freq[c]
-			bucket_color[hue] = c
+		if (hue >= 360) // fold the wrap-around bucket so red isn't split in two
+			hue = 0
+		var/hkey = "[hue]"
+		bucket_weight[hkey] = (bucket_weight[hkey] ? bucket_weight[hkey] : 0) + freq[c]
+		if (!bucket_color_count[hkey] || freq[c] > bucket_color_count[hkey])
+			bucket_color_count[hkey] = freq[c]
+			bucket_color[hkey] = c
 
-	var/best_hue = null
+	var/best_hue = -1
 	var/best_weight = 0
 	for (var/h in bucket_weight)
 		if (bucket_weight[h] > best_weight)
 			best_weight = bucket_weight[h]
-			best_hue = h
-	var/primary_color = bucket_color[best_hue]
+			best_hue = text2num(h)
+	var/primary_color = bucket_color["[best_hue]"]
 
-	var/second_hue = null
+	var/second_hue = -1
 	var/second_weight = 0
 	for (var/h in bucket_weight)
-		if (h == best_hue)
+		var/nh = text2num(h)
+		if (nh == best_hue)
 			continue
-		var/diff = abs(h - best_hue)
+		var/diff = abs(nh - best_hue)
 		if (diff > 180)
 			diff = 360 - diff
 		if (diff < 40)
 			continue // too close to primary to read as a genuinely different color
 		if (bucket_weight[h] > second_weight)
 			second_weight = bucket_weight[h]
-			second_hue = h
+			second_hue = nh
 
-	var/secondary_color = second_hue ? bucket_color[second_hue] : shift_color_lightness(primary_color, 0.4)
+	var/secondary_color = (second_hue >= 0) ? bucket_color["[second_hue]"] : shift_color_lightness(primary_color, 0.4)
 
 	var/list/civ_data = custom_civs[faction]
 	if (civ_data && civ_data.len >= 8)

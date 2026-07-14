@@ -444,7 +444,12 @@ var/list/gamemode_cache = list()
 					config.skip_persistence_saving = TRUE
 
 				if ("persistence_reboot_hour")
-					config.persistence_reboot_hour = text2num(value)
+					var/reboot_hour = text2num(value)
+					if (isnum(reboot_hour) && reboot_hour >= 0 && reboot_hour <= 23)
+						config.persistence_reboot_hour = reboot_hour
+					else
+						config.persistence_reboot_hour = -1
+						log_misc("Configuration: PERSISTENCE_REBOOT_HOUR '[value]' is not an hour (0-23); daily maintenance reboot disabled.")
 
 				if ("webhook_can_fire")
 					config.webhook_can_fire = TRUE

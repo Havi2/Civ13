@@ -580,6 +580,6 @@
 			</body></html>
 		"}
 
-		usr << browse(body,"window=artillery_window;border=1;can_close=1;can_resize=1;can_minimize=0;titlebar=1;size=420x520")
+		usr << browse(body,"window=faction_list_window;border=1;can_close=1;can_resize=1;can_minimize=0;titlebar=1;size=420x520")
 	else
 		return

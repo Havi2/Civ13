@@ -188,6 +188,9 @@ function rtInstallDelegation() {
 		var el = e.target;
 		while (el && el.nodeType === 1) {
 			if (el.className && (' ' + el.className + ' ').indexOf(' rt-node ') >= 0 && el.getAttribute('data-id')) {
+				// True fallback: a node that still carries its direct binding
+				// already handled this click -- don't open the detail twice.
+				if (el.onclick) return;
 				rtOpenDetail(el.getAttribute('data-id'));
 				return;
 			}

@@ -116,12 +116,14 @@ html body #uiContent {
 #rt-tabs {
 	display: flex;
 	flex-wrap: wrap;
-	gap: 4px;
+	/* No flex "gap": BYOND's Trident engine ignores it -- spacing comes from
+	   the margins on .rt-tab instead. */
 	border-bottom: 2px solid #a98c5c;
 	margin: 6px 0 10px;
 }
 
 .rt-tab {
+	margin-right: 4px;
 	font-family: 'Civ13Custom', Georgia, serif;
 	font-weight: bold;
 	font-size: 13px;
@@ -158,7 +160,10 @@ html body #uiContent {
 .rt-tree-wrap {
 	position: relative;
 	margin-top: 6px;
-	width: max-content;
+	/* inline-block shrink-wraps to the tree's true width (the IE-safe stand-in
+	   for width: max-content, which Trident doesn't support), and min-width
+	   keeps it filling the panel when the tree is narrower than the window. */
+	display: inline-block;
 	min-width: 100%;
 }
 

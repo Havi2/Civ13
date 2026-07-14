@@ -21,6 +21,10 @@
 	if (!picked || picked == "Cancel")
 		return
 
+	// One-way wipe of player-drawn artwork -- confirm before pulling the trigger.
+	if (WWinput(usr, "This permanently erases [picked]'s drawn symbol. Are you sure?", "Reset Faction Symbol", "No", list("Yes","No")) != "Yes")
+		return
+
 	if (map.admin_reset_faction_symbol(picked))
 		message_admins("[key_name_admin(src)] reset [picked]'s faction symbol to blank.")
 		log_admin("[key_name_admin(src)] reset [picked]'s faction symbol to blank.")
